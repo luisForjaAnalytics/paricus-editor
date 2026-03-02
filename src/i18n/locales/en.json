@@ -1,0 +1,82 @@
+{
+  "editor": {
+    "ariaLabel": "Main content area, start typing to enter text."
+  },
+  "toolbar": {
+    "undo": "Undo",
+    "redo": "Redo",
+    "heading": "Heading",
+    "headingLevel": "Heading {{level}}",
+    "formatHeading": "Format text as heading",
+    "list": "List",
+    "listOptions": "List options",
+    "bulletList": "Bullet List",
+    "orderedList": "Ordered List",
+    "taskList": "Task List",
+    "blockquote": "Blockquote",
+    "codeBlock": "Code Block",
+    "bold": "Bold",
+    "italic": "Italic",
+    "underline": "Underline",
+    "strike": "Strikethrough",
+    "code": "Code",
+    "superscript": "Superscript",
+    "subscript": "Subscript",
+    "alignLeft": "Align left",
+    "alignCenter": "Align center",
+    "alignRight": "Align right",
+    "alignJustify": "Align justify",
+    "addImage": "Add image",
+    "exportPdf": "Export to PDF",
+    "highlight": "Highlight",
+    "highlightText": "Highlight text",
+    "removeHighlight": "Remove highlight",
+    "highlightColors": "Highlight colors"
+  },
+  "colors": {
+    "default": "Default background",
+    "gray": "Gray background",
+    "brown": "Brown background",
+    "orange": "Orange background",
+    "yellow": "Yellow background",
+    "green": "Green background",
+    "blue": "Blue background",
+    "purple": "Purple background",
+    "pink": "Pink background",
+    "red": "Red background"
+  },
+  "link": {
+    "label": "Link",
+    "placeholder": "Paste a link...",
+    "apply": "Apply link",
+    "openNew": "Open in new window",
+    "remove": "Remove link"
+  },
+  "upload": {
+    "clickToUpload": "Click to upload",
+    "dragAndDrop": "or drag and drop",
+    "maxFiles": "Maximum {{limit}} file(s), {{size}}MB each.",
+    "uploading": "Uploading {{count}} files",
+    "clearAll": "Clear All"
+  },
+  "errors": {
+    "somethingWrong": "Something went wrong",
+    "tryAgain": "Try again",
+    "unexpected": "An unexpected error occurred",
+    "fileTooLarge": "File size exceeds maximum allowed ({{size}}MB)",
+    "uploadNotDefined": "Upload function is not defined",
+    "uploadFailed": "Upload failed: No URL returned",
+    "noFiles": "No files to upload",
+    "maxFilesAllowed": "Maximum {{limit}} file(s) allowed",
+    "noFileSelected": "No file selected",
+    "noFileProvided": "No file provided",
+    "uploadCancelled": "Upload cancelled",
+    "fileReadFailed": "Failed to read file",
+    "imageTimeout": "Image load timeout",
+    "imageLoadFailed": "Image load failed",
+    "pdfExportFailed": "PDF export failed",
+    "imageUploadFailed": "Image upload failed",
+    "setLinkFailed": "Failed to set link",
+    "removeLinkFailed": "Failed to remove link"
+  }
+}
