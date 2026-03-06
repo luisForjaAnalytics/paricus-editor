@@ -55,7 +55,14 @@
     "tableMergeCells": "Combinar celdas",
     "tableSplitCell": "Dividir celda",
     "tableToggleHeader": "Alternar fila de encabezado",
-    "tableDelete": "Eliminar tabla"
+    "tableDelete": "Eliminar tabla",
+    "tableOfContents": "Tabla de contenidos",
+    "tocEmpty": "No se encontraron encabezados en el documento",
+    "specialChars": "Caracteres especiales",
+    "specialCharsSymbols": "Símbolos",
+    "specialCharsArrows": "Flechas",
+    "specialCharsCurrency": "Moneda",
+    "specialCharsPunctuation": "Puntuación"
   },
   "colors": {
     "default": "Fondo predeterminado",

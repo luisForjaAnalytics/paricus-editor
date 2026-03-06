@@ -24,6 +24,7 @@ import { TableCell } from "@tiptap/extension-table-cell";
 import { TableHeader } from "@tiptap/extension-table-header";
 import { PageBreak } from "@/extensions/page-break";
 import { Bookmark } from "@/extensions/bookmark";
+import { TableOfContents } from "@/extensions/table-of-contents";
 
 // --- UI Primitives ---
 import { Button } from "@/components/tiptap-ui-primitive/button";
@@ -46,6 +47,7 @@ import "@/components/tiptap-node/heading-node/heading-node.scss";
 import "@/components/tiptap-node/paragraph-node/paragraph-node.scss";
 import "@/components/tiptap-node/table-node/table-node.scss";
 import "@/components/tiptap-node/page-break-node/page-break-node.scss";
+import "@/components/tiptap-node/table-of-contents-node/table-of-contents-node.scss";
 
 // --- Tiptap UI ---
 import { HeadingDropdownMenu } from "@/components/tiptap-ui/heading-dropdown-menu";
@@ -75,6 +77,8 @@ import { RemoveFormattingButton } from "@/components/tiptap-ui/remove-formatting
 import { PageBreakButton } from "@/components/tiptap-ui/page-break-button";
 import { BookmarkButton } from "@/components/tiptap-ui/bookmark-button";
 // import { PdfImportButton } from "@/components/tiptap-ui/pdf-import-button";
+import { TocButton } from "@/components/tiptap-ui/toc-button";
+import { SpecialCharsButton } from "@/components/tiptap-ui/special-chars-button";
 
 // --- Icons ---
 import { ArrowLeftIcon } from "@/components/tiptap-icons/arrow-left-icon";
@@ -150,6 +154,8 @@ const MainToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile }) => {
         <ImageUploadButton text={t("toolbar.addImage")} />
         <PageBreakButton />
         <BookmarkButton portal={isMobile} />
+        <TocButton />
+        <SpecialCharsButton portal={isMobile} />
       </ToolbarGroup>
       <Spacer />
       {isMobile && <ToolbarSeparator />}
@@ -237,6 +243,7 @@ export function SimpleEditor() {
       TableHeader,
       PageBreak,
       Bookmark,
+      TableOfContents,
       Selection,
       ImageUploadNode.configure({
         accept: "image/*",

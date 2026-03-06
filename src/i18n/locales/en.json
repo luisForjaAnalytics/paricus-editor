@@ -55,7 +55,14 @@
     "tableMergeCells": "Merge cells",
     "tableSplitCell": "Split cell",
     "tableToggleHeader": "Toggle header row",
-    "tableDelete": "Delete table"
+    "tableDelete": "Delete table",
+    "tableOfContents": "Table of Contents",
+    "tocEmpty": "No headings found in the document",
+    "specialChars": "Special Characters",
+    "specialCharsSymbols": "Symbols",
+    "specialCharsArrows": "Arrows",
+    "specialCharsCurrency": "Currency",
+    "specialCharsPunctuation": "Punctuation"
   },
   "colors": {
     "default": "Default background",
