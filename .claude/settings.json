@@ -10,7 +10,11 @@
       "Bash(npm install @tiptap/extension-table @tiptap/extension-table-row @tiptap/extension-table-cell @tiptap/extension-table-header)",
       "Bash(npm install html2canvas jspdf)",
       "Bash(npm uninstall pdfmake html-to-pdfmake)",
-      "Bash(npm uninstall html2canvas jspdf)"
+      "Bash(npm uninstall html2canvas jspdf)",
+      "Bash(npm install pdfjs-dist)",
+      "Bash(node -e \"const p = require\\(''pdfjs-dist/package.json''\\); console.log\\(p.version\\)\")",
+      "Bash(node -e \"const p = require\\(''./node_modules/pdfjs-dist/package.json''\\); console.log\\(p.version\\)\")",
+      "Bash(npm install tesseract.js)"
     ]
   }
 }

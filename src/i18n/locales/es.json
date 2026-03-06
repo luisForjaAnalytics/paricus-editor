@@ -37,6 +37,7 @@
     "alignJustify": "Justificar",
     "addImage": "Agregar imagen",
     "importDocx": "Importar desde Word",
+    "importPdf": "Importar desde PDF",
     "exportDocx": "Exportar a Word",
     "exportPdf": "Exportar a PDF",
     "highlight": "Resaltar",
@@ -104,6 +105,10 @@
     "docxImportFailed": "Error al importar documento de Word",
     "docxTooLarge": "El documento excede el tamaño máximo ({{size}}MB)",
     "docxInvalidType": "Tipo de archivo inválido. Por favor seleccione un archivo .docx",
-    "docxExportFailed": "Error al exportar documento de Word"
+    "docxExportFailed": "Error al exportar documento de Word",
+    "pdfImportFailed": "Error al importar PDF",
+    "pdfTooLarge": "El PDF excede el tamaño máximo ({{size}}MB)",
+    "pdfInvalidType": "Tipo de archivo inválido. Por favor seleccione un archivo .pdf",
+    "pdfOcrProgress": "OCR: procesando página {{current}} de {{total}}..."
   }
 }

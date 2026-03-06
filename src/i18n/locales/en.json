@@ -43,6 +43,7 @@
     "removeHighlight": "Remove highlight",
     "highlightColors": "Highlight colors",
     "importDocx": "Import from Word",
+    "importPdf": "Import from PDF",
     "table": "Table",
     "tableSelect": "Select size",
     "tableAddRowBefore": "Insert row above",
@@ -104,6 +105,10 @@
     "docxImportFailed": "Word document import failed",
     "docxTooLarge": "Document exceeds maximum size ({{size}}MB)",
     "docxInvalidType": "Invalid file type. Please select a .docx file",
-    "docxExportFailed": "Word document export failed"
+    "docxExportFailed": "Word document export failed",
+    "pdfImportFailed": "PDF import failed",
+    "pdfTooLarge": "PDF exceeds maximum size ({{size}}MB)",
+    "pdfInvalidType": "Invalid file type. Please select a .pdf file",
+    "pdfOcrProgress": "OCR: processing page {{current}} of {{total}}..."
   }
 }

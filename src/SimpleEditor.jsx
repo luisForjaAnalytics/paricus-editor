@@ -74,6 +74,7 @@ import { TableDropdownMenu } from "@/components/tiptap-ui/table-dropdown-menu";
 import { RemoveFormattingButton } from "@/components/tiptap-ui/remove-formatting-button";
 import { PageBreakButton } from "@/components/tiptap-ui/page-break-button";
 import { BookmarkButton } from "@/components/tiptap-ui/bookmark-button";
+// import { PdfImportButton } from "@/components/tiptap-ui/pdf-import-button";
 
 // --- Icons ---
 import { ArrowLeftIcon } from "@/components/tiptap-icons/arrow-left-icon";
@@ -154,6 +155,7 @@ const MainToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile }) => {
       {isMobile && <ToolbarSeparator />}
       <ToolbarGroup>
         <DocxImportButton />
+        {/* <PdfImportButton /> */}
         <DocxExportButton />
         <PdfExportButton />
         {/* <ThemeToggle /> */}
