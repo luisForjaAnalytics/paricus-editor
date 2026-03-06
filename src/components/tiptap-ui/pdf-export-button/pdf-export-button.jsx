@@ -1,77 +1,97 @@
 import { forwardRef } from "react"
 import { useTranslation } from "react-i18next"
-import pdfMake from "pdfmake/build/pdfmake"
-import pdfFonts from "pdfmake/build/vfs_fonts"
-import htmlToPdfmake from "html-to-pdfmake"
 import { Button } from "@/components/tiptap-ui-primitive/button"
 import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
 import { PdfDownloadIcon } from "@/components/tiptap-icons/pdf-download-icon"
 
-pdfMake.vfs = pdfFonts
+function resolveVars(html, rootEl) {
+  try {
+    const root = rootEl?.getRootNode?.()?.host || document.documentElement
+    const style = getComputedStyle(root)
+    return html.replace(/var\(--([^)]+)\)/g, (match, varName) => {
+      const value = style.getPropertyValue(`--${varName}`).trim()
+      return value || match
+    })
+  } catch {
+    return html
+  }
+}
+
+function collectStyles() {
+  const styles = []
+  for (const sheet of document.styleSheets) {
+    try {
+      for (const rule of sheet.cssRules) {
+        styles.push(rule.cssText)
+      }
+    } catch {
+      // Cross-origin stylesheets can't be read — skip
+    }
+  }
+  return styles.join("\n")
+}
 
 export const PdfExportButton = forwardRef(
   ({ editor: providedEditor, text, ...buttonProps }, ref) => {
     const { t } = useTranslation()
     const { editor } = useTiptapEditor(providedEditor)
 
-    const handleExport = async () => {
+    const handleExport = () => {
       if (!editor) return
 
       try {
-        const html = editor.getHTML()
+        const html = resolveVars(editor.getHTML(), editor.view.dom)
+        const cssText = collectStyles()
 
-        // Resolve CSS variables (e.g. var(--tt-color-highlight-yellow)) to actual color values
-        const computedStyle = getComputedStyle(document.documentElement)
-        const resolvedHtml = html.replace(/var\(--([^)]+)\)/g, (match, varName) => {
-          const value = computedStyle.getPropertyValue(`--${varName}`).trim()
-          return value || match
-        })
+        const iframe = document.createElement("iframe")
+        iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;"
+        document.body.appendChild(iframe)
 
-        // Convert images to base64 data URLs (pdfmake can't use relative paths)
-        const container = document.createElement("div")
-        container.innerHTML = resolvedHtml
-        const images = container.querySelectorAll("img")
+        const doc = iframe.contentDocument
+        doc.open()
+        doc.write(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: A4; margin: 15mm; }
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+  ${cssText}
+  body {
+    margin: 0;
+    padding: 20px 40px;
+    background: white;
+    color: #000;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .print-content {
+    max-width: 100%;
+    line-height: 1.6;
+  }
+  a { color: #1a56db; }
+</style>
+</head>
+<body>
+  <div class="ProseMirror simple-editor print-content">${html}</div>
+</body>
+</html>`)
+        doc.close()
 
-        for (const img of images) {
-          if (img.src.startsWith("data:")) continue
-          try {
-            const dataUrl = await new Promise((resolve, reject) => {
-              const imgEl = new Image()
-              imgEl.crossOrigin = "anonymous"
-              const timeout = setTimeout(() => {
-                imgEl.src = ""
-                reject(new Error(t("errors.imageTimeout")))
-              }, 10000)
-              imgEl.onload = () => {
-                clearTimeout(timeout)
-                const canvas = document.createElement("canvas")
-                canvas.width = imgEl.naturalWidth
-                canvas.height = imgEl.naturalHeight
-                canvas.getContext("2d").drawImage(imgEl, 0, 0)
-                resolve(canvas.toDataURL("image/png"))
-              }
-              imgEl.onerror = () => {
-                clearTimeout(timeout)
-                reject(new Error(t("errors.imageLoadFailed")))
-              }
-              imgEl.src = img.src
-            })
-            img.src = dataUrl
-          } catch {
-            img.remove()
+        // Wait for content to render, then print
+        iframe.contentWindow.focus()
+        setTimeout(() => {
+          iframe.contentWindow.print()
+
+          // Clean up after dialog closes
+          const cleanup = () => {
+            try { document.body.removeChild(iframe) } catch { /* already removed */ }
           }
-        }
-
-        const content = htmlToPdfmake(container.innerHTML, { window })
-
-        const docDefinition = {
-          content,
-          defaultStyle: {
-            font: "Roboto",
-          },
-        }
-
-        pdfMake.createPdf(docDefinition).download("document.pdf")
+          iframe.contentWindow.addEventListener("afterprint", cleanup)
+          // Fallback cleanup after 60s
+          setTimeout(cleanup, 60000)
+        }, 250)
       } catch (error) {
         console.error(t("errors.pdfExportFailed"), error)
       }

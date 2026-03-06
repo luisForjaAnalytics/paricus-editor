@@ -13,7 +13,17 @@ import { Typography } from "@tiptap/extension-typography";
 import { Highlight } from "@tiptap/extension-highlight";
 import { Subscript } from "@tiptap/extension-subscript";
 import { Superscript } from "@tiptap/extension-superscript";
+import { Color } from "@tiptap/extension-color";
+import { TextStyle } from "@tiptap/extension-text-style";
+import { FontFamily } from "@tiptap/extension-font-family";
 import { Selection } from "@tiptap/extensions";
+import { FontSize } from "@/extensions/font-size";
+import { Table } from "@tiptap/extension-table";
+import { TableRow } from "@tiptap/extension-table-row";
+import { TableCell } from "@tiptap/extension-table-cell";
+import { TableHeader } from "@tiptap/extension-table-header";
+import { PageBreak } from "@/extensions/page-break";
+import { Bookmark } from "@/extensions/bookmark";
 
 // --- UI Primitives ---
 import { Button } from "@/components/tiptap-ui-primitive/button";
@@ -34,12 +44,15 @@ import "@/components/tiptap-node/list-node/list-node.scss";
 import "@/components/tiptap-node/image-node/image-node.scss";
 import "@/components/tiptap-node/heading-node/heading-node.scss";
 import "@/components/tiptap-node/paragraph-node/paragraph-node.scss";
+import "@/components/tiptap-node/table-node/table-node.scss";
+import "@/components/tiptap-node/page-break-node/page-break-node.scss";
 
 // --- Tiptap UI ---
 import { HeadingDropdownMenu } from "@/components/tiptap-ui/heading-dropdown-menu";
 import { ImageUploadButton } from "@/components/tiptap-ui/image-upload-button";
 import { ListDropdownMenu } from "@/components/tiptap-ui/list-dropdown-menu";
 import { BlockquoteButton } from "@/components/tiptap-ui/blockquote-button";
+import { IndentButton } from "@/components/tiptap-ui/indent-button";
 import { CodeBlockButton } from "@/components/tiptap-ui/code-block-button";
 import {
   ColorHighlightPopover,
@@ -55,6 +68,12 @@ import { MarkButton } from "@/components/tiptap-ui/mark-button";
 import { TextAlignButton } from "@/components/tiptap-ui/text-align-button";
 import { UndoRedoButton } from "@/components/tiptap-ui/undo-redo-button";
 import { PdfExportButton } from "@/components/tiptap-ui/pdf-export-button";
+import { DocxImportButton } from "@/components/tiptap-ui/docx-import-button";
+import { DocxExportButton } from "@/components/tiptap-ui/docx-export-button";
+import { TableDropdownMenu } from "@/components/tiptap-ui/table-dropdown-menu";
+import { RemoveFormattingButton } from "@/components/tiptap-ui/remove-formatting-button";
+import { PageBreakButton } from "@/components/tiptap-ui/page-break-button";
+import { BookmarkButton } from "@/components/tiptap-ui/bookmark-button";
 
 // --- Icons ---
 import { ArrowLeftIcon } from "@/components/tiptap-icons/arrow-left-icon";
@@ -67,7 +86,7 @@ import { useWindowSize } from "@/hooks/use-window-size";
 import { useCursorVisibility } from "@/hooks/use-cursor-visibility";
 
 // --- Components ---
-import { ThemeToggle } from "@/components/tiptap-templates/simple/theme-toggle";
+// import { ThemeToggle } from "@/components/tiptap-templates/simple/theme-toggle";
 
 // --- Lib ---
 import { handleImageUpload, MAX_FILE_SIZE } from "@/lib/tiptap-utils";
@@ -75,7 +94,6 @@ import { handleImageUpload, MAX_FILE_SIZE } from "@/lib/tiptap-utils";
 // --- Styles ---
 import "@/components/tiptap-templates/simple/simple-editor.scss";
 
-import content from "@/components/tiptap-templates/simple/data/content.json";
 
 const MainToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile }) => {
   const { t } = useTranslation();
@@ -93,6 +111,9 @@ const MainToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile }) => {
           types={["bulletList", "orderedList", "taskList"]}
           portal={isMobile}
         />
+        <IndentButton direction="indent" />
+        <IndentButton direction="outdent" />
+        <TableDropdownMenu portal={isMobile} />
         <BlockquoteButton />
         <CodeBlockButton />
       </ToolbarGroup>
@@ -109,6 +130,7 @@ const MainToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile }) => {
           <ColorHighlightPopoverButton onClick={onHighlighterClick} />
         )}
         {!isMobile ? <LinkPopover /> : <LinkButton onClick={onLinkClick} />}
+        <RemoveFormattingButton />
       </ToolbarGroup>
       <ToolbarSeparator />
       <ToolbarGroup>
@@ -125,12 +147,16 @@ const MainToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile }) => {
       <ToolbarSeparator />
       <ToolbarGroup>
         <ImageUploadButton text={t("toolbar.addImage")} />
+        <PageBreakButton />
+        <BookmarkButton portal={isMobile} />
       </ToolbarGroup>
       <Spacer />
       {isMobile && <ToolbarSeparator />}
       <ToolbarGroup>
+        <DocxImportButton />
+        <DocxExportButton />
         <PdfExportButton />
-        <ThemeToggle />
+        {/* <ThemeToggle /> */}
       </ToolbarGroup>
     </>
   );
@@ -166,6 +192,11 @@ export function SimpleEditor() {
   const [mobileView, setMobileView] = useState("main");
   const toolbarRef = useRef(null);
 
+  // Force light mode
+  useEffect(() => {
+    document.documentElement.classList.remove("dark");
+  }, []);
+
   const editor = useEditor({
     immediatelyRender: false,
     editorProps: {
@@ -194,16 +225,26 @@ export function SimpleEditor() {
       Typography,
       Superscript,
       Subscript,
+      TextStyle,
+      Color,
+      FontFamily,
+      FontSize,
+      Table.configure({ resizable: true }),
+      TableRow,
+      TableCell,
+      TableHeader,
+      PageBreak,
+      Bookmark,
       Selection,
       ImageUploadNode.configure({
         accept: "image/*",
         maxSize: MAX_FILE_SIZE,
         limit: 3,
         upload: handleImageUpload,
-        onError: (error) => console.error("Upload failed:", error),
+        onError: (error) => console.error(error),
       }),
     ],
-    content,
+    content: "<p></p>",
   });
 
   const rect = useCursorVisibility({

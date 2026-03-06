@@ -1,0 +1,73 @@
+.tiptap.ProseMirror {
+  table {
+    border-collapse: collapse;
+    table-layout: fixed;
+    width: 100%;
+    margin: 1em 0;
+    overflow: hidden;
+
+    td,
+    th {
+      min-width: 1em;
+      border: 1px solid var(--tt-gray-light-a-300);
+      padding: 0.5em 0.75em;
+      vertical-align: top;
+      box-sizing: border-box;
+      position: relative;
+
+      > * {
+        margin-bottom: 0;
+      }
+    }
+
+    th {
+      font-weight: bold;
+      text-align: left;
+      background-color: var(--tt-gray-light-a-100);
+    }
+
+    .selectedCell::after {
+      z-index: 2;
+      position: absolute;
+      content: "";
+      left: 0;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      background: rgba(59, 130, 246, 0.15);
+      pointer-events: none;
+    }
+
+    .column-resize-handle {
+      position: absolute;
+      right: -2px;
+      top: 0;
+      bottom: -2px;
+      width: 4px;
+      background-color: var(--tt-blue-500, #3b82f6);
+      pointer-events: none;
+    }
+  }
+
+  .tableWrapper {
+    overflow-x: auto;
+    margin: 1em 0;
+  }
+
+  &.resize-cursor {
+    cursor: col-resize;
+  }
+
+  .dark & {
+    table {
+      td,
+      th {
+        border-color: var(--tt-gray-dark-a-300);
+      }
+
+      th {
+        background-color: var(--tt-gray-dark-a-100);
+      }
+    }
+  }
+}
