@@ -109,13 +109,14 @@ export function useUndoRedo(config) {
   const { t } = useTranslation()
   const { editor } = useTiptapEditor(providedEditor)
   const [isVisible, setIsVisible] = useState(true)
-  const canExecute = canExecuteUndoRedoAction(editor, action)
+  const [canExecute, setCanExecute] = useState(false)
 
   useEffect(() => {
     if (!editor) return
 
     const handleUpdate = () => {
       setIsVisible(shouldShowButton({ editor, hideWhenUnavailable, action }))
+      setCanExecute(canExecuteUndoRedoAction(editor, action))
     }
 
     handleUpdate()

@@ -18,6 +18,8 @@ import { TextStyle } from "@tiptap/extension-text-style";
 import { FontFamily } from "@tiptap/extension-font-family";
 import { Selection } from "@tiptap/extensions";
 import { FontSize } from "@/extensions/font-size";
+import { LineHeight } from "@/extensions/line-height";
+import { Indent } from "@/extensions/indent";
 import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
 import { TableCell } from "@tiptap/extension-table-cell";
@@ -76,9 +78,11 @@ import { TableDropdownMenu } from "@/components/tiptap-ui/table-dropdown-menu";
 import { RemoveFormattingButton } from "@/components/tiptap-ui/remove-formatting-button";
 import { PageBreakButton } from "@/components/tiptap-ui/page-break-button";
 import { BookmarkButton } from "@/components/tiptap-ui/bookmark-button";
-// import { PdfImportButton } from "@/components/tiptap-ui/pdf-import-button";
 import { TocButton } from "@/components/tiptap-ui/toc-button";
 import { SpecialCharsButton } from "@/components/tiptap-ui/special-chars-button";
+import { FontSizeDropdown } from "@/components/tiptap-ui/font-size-dropdown";
+import { LineHeightDropdown } from "@/components/tiptap-ui/line-height-dropdown";
+import { LanguageSwitcher } from "@/components/tiptap-ui/language-switcher";
 
 // --- Icons ---
 import { ArrowLeftIcon } from "@/components/tiptap-icons/arrow-left-icon";
@@ -89,9 +93,6 @@ import { LinkIcon } from "@/components/tiptap-icons/link-icon";
 import { useIsBreakpoint } from "@/hooks/use-is-breakpoint";
 import { useWindowSize } from "@/hooks/use-window-size";
 import { useCursorVisibility } from "@/hooks/use-cursor-visibility";
-
-// --- Components ---
-// import { ThemeToggle } from "@/components/tiptap-templates/simple/theme-toggle";
 
 // --- Lib ---
 import { handleImageUpload, MAX_FILE_SIZE } from "@/lib/tiptap-utils";
@@ -112,6 +113,8 @@ const MainToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile }) => {
       <ToolbarSeparator />
       <ToolbarGroup>
         <HeadingDropdownMenu levels={[1, 2, 3, 4]} portal={isMobile} />
+        <FontSizeDropdown portal={isMobile} />
+        <LineHeightDropdown portal={isMobile} />
         <ListDropdownMenu
           types={["bulletList", "orderedList", "taskList"]}
           portal={isMobile}
@@ -157,15 +160,15 @@ const MainToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile }) => {
         <TocButton />
         <SpecialCharsButton portal={isMobile} />
       </ToolbarGroup>
-      <Spacer />
-      {isMobile && <ToolbarSeparator />}
+      <ToolbarSeparator />
       <ToolbarGroup>
         <DocxImportButton />
-        {/* <PdfImportButton /> */}
         <DocxExportButton />
         <PdfExportButton />
-        {/* <ThemeToggle /> */}
+        <ToolbarSeparator />
+        <LanguageSwitcher />
       </ToolbarGroup>
+      <Spacer />
     </>
   );
 };
@@ -200,7 +203,7 @@ export function SimpleEditor() {
   const [mobileView, setMobileView] = useState("main");
   const toolbarRef = useRef(null);
 
-  // Force light mode
+  // Force light mode & expose editor for debugging
   useEffect(() => {
     document.documentElement.classList.remove("dark");
   }, []);
@@ -237,6 +240,8 @@ export function SimpleEditor() {
       Color,
       FontFamily,
       FontSize,
+      LineHeight,
+      Indent,
       Table.configure({ resizable: true }),
       TableRow,
       TableCell,
@@ -255,6 +260,11 @@ export function SimpleEditor() {
     ],
     content: "<p></p>",
   });
+
+  useEffect(() => {
+    if (editor) window.__editor = editor;
+    return () => { window.__editor = null; };
+  }, [editor]);
 
   const rect = useCursorVisibility({
     editor,
@@ -294,11 +304,13 @@ export function SimpleEditor() {
           )}
         </Toolbar>
 
-        <EditorContent
-          editor={editor}
-          role="presentation"
-          className="simple-editor-content"
-        />
+        <div className="simple-editor-canvas">
+          <EditorContent
+            editor={editor}
+            role="presentation"
+            className="simple-editor-content"
+          />
+        </div>
       </EditorContext.Provider>
     </div>
   );

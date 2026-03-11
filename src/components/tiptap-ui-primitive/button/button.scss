@@ -303,9 +303,11 @@
     }
   }
 
-  &:disabled {
+  &:disabled,
+  &[aria-disabled="true"] {
     background-color: var(--tt-button-disabled-bg-color);
     color: var(--tt-button-disabled-text-color);
+    cursor: default;
 
     .tiptap-button-icon {
       color: var(--tt-button-disabled-icon-color);

@@ -14,7 +14,22 @@
       "Bash(npm install pdfjs-dist)",
       "Bash(node -e \"const p = require\\(''pdfjs-dist/package.json''\\); console.log\\(p.version\\)\")",
       "Bash(node -e \"const p = require\\(''./node_modules/pdfjs-dist/package.json''\\); console.log\\(p.version\\)\")",
-      "Bash(npm install tesseract.js)"
+      "Bash(npm install tesseract.js)",
+      "Bash(npm install dompurify)",
+      "WebSearch",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(xargs grep -l -i \"table\\\\|Table\")",
+      "Bash(npm search table-row-resize)",
+      "Bash(grep -n \"^export\\\\|^function\\\\|^const\" /c/desarrollo/FORJA/paricus-editor/src/extensions/*.js)",
+      "Bash(grep -r \"^[[:space:]]*//.*import\" /c/desarrollo/FORJA/paricus-editor/src/components/tiptap-ui --include=\"*.jsx\" --include=\"*.js\")",
+      "Bash(grep -n \"^.*//.*import\\\\|^[[:space:]]*\\\\/\\\\*\" /c/desarrollo/FORJA/paricus-editor/src/SimpleEditor.jsx)",
+      "Bash(grep -l \"useTranslation\\\\|i18n\" /c/desarrollo/FORJA/paricus-editor/src/components/tiptap-ui/*/use*.js)",
+      "Bash(grep -h \"const handleClick = useCallback\" /c/desarrollo/FORJA/paricus-editor/src/components/tiptap-ui/**/*.jsx)",
+      "Bash(grep -r \"tooltip=.*\\\\`\" /c/desarrollo/FORJA/paricus-editor/src/components/tiptap-ui --include=\"*.jsx\")"
+    ],
+    "additionalDirectories": [
+      "C:\\desarrollo\\FORJA\\paricus-editor\\src\\extensions"
     ]
   }
 }

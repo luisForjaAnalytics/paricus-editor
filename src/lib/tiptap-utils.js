@@ -26,18 +26,6 @@ export const MAC_SYMBOLS = {
   capslock: "⇪"
 }
 
-export const SR_ONLY = {
-  position: "absolute",
-  width: "1px",
-  height: "1px",
-  padding: 0,
-  margin: "-1px",
-  overflow: "hidden",
-  clip: "rect(0, 0, 0, 0)",
-  whiteSpace: "nowrap",
-  borderWidth: 0
-}
-
 export function cn(...classes) {
   return classes.filter(Boolean).join(" ");
 }
@@ -453,47 +441,6 @@ export function updateNodesAttr(tr, targets, attrName, next) {
   }
 
   return changed
-}
-
-/**
- * Selects the entire content of the current block node if the selection is empty.
- * If the selection is not empty, it does nothing.
- * @param editor The Tiptap editor instance
- */
-export function selectCurrentBlockContent(editor) {
-  const { selection, doc } = editor.state
-
-  if (!selection.empty) return
-
-  const $pos = selection.$from
-  let blockNode = null
-  let blockPos = -1
-
-  for (let depth = $pos.depth; depth >= 0; depth--) {
-    const node = $pos.node(depth)
-    const pos = $pos.start(depth)
-
-    if (node.isBlock && node.textContent.trim()) {
-      blockNode = node
-      blockPos = pos
-      break
-    }
-  }
-
-  if (blockNode && blockPos >= 0) {
-    const from = blockPos
-    const to = blockPos + blockNode.nodeSize - 2 // -2 to exclude the closing tag
-
-    if (from < to) {
-      const $from = doc.resolve(from)
-      const $to = doc.resolve(to)
-      const newSelection = TextSelection.between($from, $to, 1)
-
-      if (newSelection && !selection.eq(newSelection)) {
-        editor.view.dispatch(editor.state.tr.setSelection(newSelection))
-      }
-    }
-  }
 }
 
 /**

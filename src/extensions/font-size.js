@@ -20,4 +20,24 @@ export const FontSize = Extension.create({
       },
     ]
   },
+
+  addCommands() {
+    return {
+      setFontSize:
+        (size) =>
+        ({ chain }) => {
+          const parsed = parseFloat(size)
+          if (isNaN(parsed) || parsed < 1 || parsed > 200) return false
+          return chain().setMark("textStyle", { fontSize: `${parsed}px` }).run()
+        },
+      unsetFontSize:
+        () =>
+        ({ chain }) => {
+          return chain()
+            .setMark("textStyle", { fontSize: null })
+            .removeEmptyTextStyle()
+            .run()
+        },
+    }
+  },
 })

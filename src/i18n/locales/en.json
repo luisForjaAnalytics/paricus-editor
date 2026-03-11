@@ -5,8 +5,8 @@
   "toolbar": {
     "undo": "Undo",
     "redo": "Redo",
-    "heading": "Heading",
-    "headingLevel": "Heading {{level}}",
+    "heading": "Title",
+    "headingLevel": "Title {{level}}",
     "formatHeading": "Format text as heading",
     "list": "List",
     "listOptions": "List options",
@@ -62,7 +62,10 @@
     "specialCharsSymbols": "Symbols",
     "specialCharsArrows": "Arrows",
     "specialCharsCurrency": "Currency",
-    "specialCharsPunctuation": "Punctuation"
+    "specialCharsPunctuation": "Punctuation",
+    "fontSize": "Font size",
+    "lineHeight": "Line spacing",
+    "language": "Language"
   },
   "colors": {
     "default": "Default background",

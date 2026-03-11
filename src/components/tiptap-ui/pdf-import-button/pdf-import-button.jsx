@@ -4,6 +4,7 @@ import { Button } from "@/components/tiptap-ui-primitive/button"
 import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
 import { PdfUploadIcon } from "@/components/tiptap-icons/pdf-upload-icon"
 import { convertPdfToHtml } from "@/lib/pdf-converter"
+import { sanitizeHtml } from "@/lib/sanitize-html"
 
 export const PdfImportButton = forwardRef(
   ({ editor: providedEditor, text, ...buttonProps }, ref) => {
@@ -25,7 +26,7 @@ export const PdfImportButton = forwardRef(
           const { html } = await convertPdfToHtml(file, (current, total) => {
             setProgress(t("errors.pdfOcrProgress", { current, total }))
           })
-          editor.commands.setContent(html)
+          editor.commands.setContent(sanitizeHtml(html))
         } catch (error) {
           console.error(t("errors.pdfImportFailed"), error)
         } finally {

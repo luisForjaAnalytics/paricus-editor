@@ -57,8 +57,9 @@ export const TableOfContents = Node.create({
       dom.contentEditable = "false"
 
       function render() {
+        if (!editor?.state?.doc) return
         const headings = collectHeadings(editor.state.doc)
-        dom.innerHTML = ""
+        while (dom.firstChild) dom.removeChild(dom.firstChild)
 
         const title = document.createElement("p")
         title.className = "toc-title"

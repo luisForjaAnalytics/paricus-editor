@@ -5,8 +5,8 @@
   "toolbar": {
     "undo": "Deshacer",
     "redo": "Rehacer",
-    "heading": "Encabezado",
-    "headingLevel": "Encabezado {{level}}",
+    "heading": "Título",
+    "headingLevel": "Título {{level}}",
     "formatHeading": "Formatear texto como encabezado",
     "list": "Lista",
     "listOptions": "Opciones de lista",
@@ -62,7 +62,10 @@
     "specialCharsSymbols": "Símbolos",
     "specialCharsArrows": "Flechas",
     "specialCharsCurrency": "Moneda",
-    "specialCharsPunctuation": "Puntuación"
+    "specialCharsPunctuation": "Puntuación",
+    "fontSize": "Tamaño de fuente",
+    "lineHeight": "Interlineado",
+    "language": "Idioma"
   },
   "colors": {
     "default": "Fondo predeterminado",

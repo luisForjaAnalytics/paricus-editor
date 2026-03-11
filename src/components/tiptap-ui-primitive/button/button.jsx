@@ -59,6 +59,12 @@ export const Button = forwardRef((
     );
   }
 
+  // When tooltip is present and button is disabled, use aria-disabled
+  // instead of native disabled so hover events still fire for the tooltip
+  const tooltipProps = props.disabled
+    ? { ...props, disabled: undefined, "aria-disabled": true, onClick: (e) => e.preventDefault() }
+    : props
+
   return (
     <Tooltip delay={200}>
       <TooltipTrigger
@@ -66,7 +72,7 @@ export const Button = forwardRef((
         ref={ref}
         data-style={variant}
         data-size={size}
-        {...props}>
+        {...tooltipProps}>
         {children}
       </TooltipTrigger>
       <TooltipContent>

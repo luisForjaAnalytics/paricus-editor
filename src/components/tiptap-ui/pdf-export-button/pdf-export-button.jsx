@@ -48,6 +48,7 @@ export const PdfExportButton = forwardRef(
         document.body.appendChild(iframe)
 
         const doc = iframe.contentDocument
+        if (!doc) throw new Error("Cannot access iframe document")
         doc.open()
         doc.write(`<!DOCTYPE html>
 <html>
@@ -71,6 +72,9 @@ export const PdfExportButton = forwardRef(
     line-height: 1.6;
   }
   a { color: #1a56db; }
+  table { border-collapse: collapse; table-layout: fixed; width: 100%; margin: 1em 0; }
+  table td, table th { border: 1px solid #d1d5db !important; padding: 0.5em 0.75em; vertical-align: top; }
+  table th { font-weight: bold; text-align: left; background-color: #f3f4f6 !important; }
 </style>
 </head>
 <body>
@@ -80,15 +84,17 @@ export const PdfExportButton = forwardRef(
         doc.close()
 
         // Wait for content to render, then print
-        iframe.contentWindow.focus()
+        const win = iframe.contentWindow
+        if (!win) throw new Error("Cannot access iframe window")
+        win.focus()
         setTimeout(() => {
-          iframe.contentWindow.print()
+          win.print()
 
           // Clean up after dialog closes
           const cleanup = () => {
             try { document.body.removeChild(iframe) } catch { /* already removed */ }
           }
-          iframe.contentWindow.addEventListener("afterprint", cleanup)
+          win.addEventListener("afterprint", cleanup)
           // Fallback cleanup after 60s
           setTimeout(cleanup, 60000)
         }, 250)

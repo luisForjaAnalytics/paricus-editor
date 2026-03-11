@@ -4,6 +4,7 @@ import { Button } from "@/components/tiptap-ui-primitive/button"
 import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
 import { FileUploadIcon } from "@/components/tiptap-icons/file-upload-icon"
 import { convertDocxToHtml } from "@/lib/docx-converter"
+import { sanitizeHtml } from "@/lib/sanitize-html"
 
 export const DocxImportButton = forwardRef(
   ({ editor: providedEditor, text, ...buttonProps }, ref) => {
@@ -26,7 +27,7 @@ export const DocxImportButton = forwardRef(
             console.warn("Word import warnings:", warnings)
           }
 
-          editor.commands.setContent(html)
+          editor.commands.setContent(sanitizeHtml(html))
         } catch (error) {
           console.error(t("errors.docxImportFailed"), error)
         } finally {
