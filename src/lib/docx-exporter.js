@@ -63,6 +63,24 @@ function tableHasNoBorders(tableEl) {
 // px to twips (1px ≈ 15 twips at 96 DPI: 1440 twips/inch ÷ 96 px/inch)
 const pxToTwip = (px) => Math.round(px * 15)
 
+/**
+ * Returns the element's line-height in px ONLY if it comes from an inline style
+ * (set by the source HTML or by the editor's line-height button), NOT from the
+ * editor's CSS rules (like `li p { line-height: 1.6 }`).
+ * Walks up to 5 ancestors to find inherited inline line-height.
+ */
+function getExplicitLineHeightPx(el) {
+  // Check if this element or a close ancestor has line-height in its inline style
+  let node = el
+  for (let depth = 0; node && node !== document.body && depth < 5; depth++, node = node.parentElement) {
+    if (node.style && node.style.lineHeight) {
+      const lhPx = parseFloat(getComputedStyle(el).lineHeight)
+      return (lhPx && lhPx > 0) ? lhPx : null
+    }
+  }
+  return null
+}
+
 function getAlignment(element) {
   const style = element.getAttribute("style") || ""
   const match = style.match(/text-align:\s*(left|center|right|justify)/)
@@ -466,12 +484,18 @@ function parseBlockElements(container, inherited = {}) {
 
     // Headings
     if (HEADING_MAP[tag]) {
-      blocks.push({
+      const hBlock = {
         type: "heading",
         level: HEADING_MAP[tag],
         runs: collectTextRuns(node, inherited),
         alignment,
-      })
+      }
+      if (inherited._insideTable) {
+        hBlock._insideTable = true
+        const hLhPx = getExplicitLineHeightPx(node)
+        if (hLhPx) hBlock._lineHeightPx = hLhPx
+      }
+      blocks.push(hBlock)
       continue
     }
 
@@ -481,6 +505,9 @@ function parseBlockElements(container, inherited = {}) {
       const paraAlignment = alignment || inherited._cellAlignment
       const block = { type: "paragraph", runs: collectTextRuns(node, inherited), alignment: paraAlignment }
       if (inherited._insideTable) block._insideTable = true
+      // Read per-element line-height — only when explicitly set in CSS
+      const elLhPx = getExplicitLineHeightPx(node)
+      if (elLhPx) block._lineHeightPx = elLhPx
       blocks.push(block)
       continue
     }
@@ -596,6 +623,10 @@ function collectListItems(listNode, blocks, listType, level, inherited = {}) {
       }
     }
 
+    // Read per-element line-height from the li (or its inner p) — only if explicitly set
+    const liLhSource = li.querySelector("p") || li
+    const liLhPx = getExplicitLineHeightPx(liLhSource)
+
     if (isTask) {
       const taskBlock = {
         type: "paragraph",
@@ -603,6 +634,7 @@ function collectListItems(listNode, blocks, listType, level, inherited = {}) {
         indent: level * 360 + 360,
       }
       if (inherited._insideTable) taskBlock._insideTable = true
+      if (liLhPx) taskBlock._lineHeightPx = liLhPx
       blocks.push(taskBlock)
     } else {
       const listBlock = {
@@ -612,6 +644,7 @@ function collectListItems(listNode, blocks, listType, level, inherited = {}) {
         runs: textNodes.length ? textNodes : [new TextRun({ text: " " })],
       }
       if (inherited._insideTable) listBlock._insideTable = true
+      if (liLhPx) listBlock._lineHeightPx = liLhPx
       blocks.push(listBlock)
     }
 
@@ -905,8 +938,23 @@ async function blocksToDocxChildren(blocks, inheritedColor) {
 
     const runs = block.runs ? await processImageRuns(block.runs) : []
 
-    // Table cell spacing: auto-detected from td line-height
-    const tableCellSpacing = block._insideTable ? { before: 0, after: 0, line: _tableCellLineSpacing, lineRule: LineRuleType.EXACTLY } : undefined
+    // Spacing logic:
+    // - Inline line-height found → use that exact value (converted to twips)
+    // - Inside table, no inline lh → compact (before:0, after:0), let Word handle line spacing
+    // - Outside table, no inline lh → use global editor spacing (auto-detected from CSS)
+    const elementSpacing = (() => {
+      if (block._lineHeightPx > 0) {
+        const twips = Math.round(pxToTwip(block._lineHeightPx))
+        if (block._insideTable) {
+          return { before: 0, after: 0, line: twips, lineRule: LineRuleType.EXACTLY }
+        }
+        return { line: twips, lineRule: LineRuleType.EXACTLY }
+      }
+      if (block._insideTable) {
+        return { before: 0, after: 0 }
+      }
+      return undefined
+    })()
 
     if (block.type === "heading") {
       children.push(
@@ -914,25 +962,27 @@ async function blocksToDocxChildren(blocks, inheritedColor) {
           children: runs,
           heading: block.level,
           alignment: block.alignment,
-          spacing: tableCellSpacing,
+          spacing: elementSpacing,
         })
       )
       continue
     }
 
     if (block.type === "list") {
-      // Lists always use list spacing (from li p CSS), even inside tables.
-      // In the editor, li p { line-height: 1.6 } applies regardless of table context.
-      // Proportional spacing for lists (Word handles font metrics)
-      const listSpacing = { line: _listLineSpacing, after: _listParaAfter }
+      // Inline lh → exact value; inside table no lh → no spacing; outside table → global editor spacing
+      const listSpacing = block._lineHeightPx > 0
+        ? { line: Math.round(pxToTwip(block._lineHeightPx)), lineRule: LineRuleType.EXACTLY, after: _listParaAfter }
+        : block._insideTable
+          ? undefined
+          : { line: _listLineSpacing, after: _listParaAfter }
       const listOpts = {
         children: runs,
         numbering: {
           reference: block.listType === "ordered" ? "ordered-list" : "unordered-list",
           level: block.level,
         },
-        spacing: listSpacing,
       }
+      if (listSpacing) listOpts.spacing = listSpacing
       children.push(new Paragraph(listOpts))
       continue
     }
@@ -943,8 +993,8 @@ async function blocksToDocxChildren(blocks, inheritedColor) {
       alignment: block.alignment,
     }
 
-    if (tableCellSpacing) {
-      paragraphOptions.spacing = tableCellSpacing
+    if (elementSpacing) {
+      paragraphOptions.spacing = elementSpacing
     }
 
     if (block.indent) {
