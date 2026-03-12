@@ -1,0 +1,102 @@
+.table-floating-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  background: var(--tt-card-background, #fff);
+  border: 1px solid var(--tt-gray-light-a-200, #e5e7eb);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
+  z-index: 50;
+  animation: tableToolbarFadeIn 150ms cubic-bezier(0.16, 1, 0.3, 1);
+  flex-wrap: wrap;
+  max-width: 90vw;
+
+  // Prevent toolbar clicks from stealing editor focus
+  user-select: none;
+}
+
+@keyframes tableToolbarFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.table-floating-btn {
+  min-width: 28px !important;
+  height: 28px !important;
+  padding: 4px !important;
+  border-radius: 4px;
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  &:hover {
+    background: var(--tt-gray-light-a-100, #f3f4f6);
+  }
+}
+
+.table-floating-btn--text {
+  font-size: 0.7rem;
+  font-weight: 500;
+  padding: 4px 6px !important;
+}
+
+.table-floating-btn--danger {
+  color: var(--tt-red-500, #ef4444);
+
+  &:hover {
+    background: rgba(239, 68, 68, 0.1);
+  }
+}
+
+// Color picker grid
+.table-color-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+}
+
+.table-color-swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid;
+  cursor: pointer;
+  padding: 0;
+  transition: transform 100ms ease;
+
+  &:hover {
+    transform: scale(1.15);
+  }
+}
+
+.table-color-swatch--remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border-color: var(--tt-gray-light-a-300, #d1d5db);
+  color: var(--tt-gray-light-a-500, #6b7280);
+}
+
+// Separator styling within toolbar
+.table-floating-toolbar > [data-orientation="vertical"] {
+  height: 20px;
+  margin: 0 2px;
+}
+
+// Dark mode
+[data-theme="dark"] .table-floating-toolbar,
+.dark .table-floating-toolbar {
+  background: var(--tt-card-background, #1f2937);
+  border-color: var(--tt-gray-dark-a-200, #374151);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.2);
+}

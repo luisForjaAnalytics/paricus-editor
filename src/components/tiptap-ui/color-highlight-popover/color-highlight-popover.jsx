@@ -143,7 +143,7 @@ export function ColorHighlightPopover({
   const { t } = useTranslation()
   const { editor } = useTiptapEditor(providedEditor)
   const [isOpen, setIsOpen] = useState(false)
-  const { isVisible, canColorHighlight, isActive, label, Icon } =
+  const { isVisible, canColorHighlight, isActive, activeColorValue, label, Icon } =
     useColorHighlight({
       editor,
       hideWhenUnavailable,
@@ -162,6 +162,10 @@ export function ColorHighlightPopover({
           aria-pressed={isActive}
           aria-label={label}
           tooltip={label}
+          style={activeColorValue ? {
+            "--tt-button-active-bg-color": activeColorValue,
+            "--tt-button-active-hover-bg-color": activeColorValue,
+          } : undefined}
           {...props}>
           <Icon className="tiptap-button-icon" />
         </ColorHighlightPopoverButton>

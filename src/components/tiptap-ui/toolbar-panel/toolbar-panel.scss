@@ -1,0 +1,26 @@
+.toolbar-panel-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  max-width: 95vw;
+  background-color: var(--tt-gray-light-a-50, #f8f9fa);
+  border: 1px solid var(--tt-popover-border-color);
+  border-radius: var(--tt-radius-lg, 0.5rem);
+  box-shadow: var(--tt-shadow-elevated-md, 0 4px 12px rgba(0, 0, 0, 0.1));
+
+  .dark & {
+    background-color: var(--tt-gray-dark-50, #2a2a2a);
+  }
+
+  .toolbar-panel-row {
+    display: flex;
+    align-items: center;
+    gap: 0.125rem;
+  }
+
+  .toolbar-panel-separator {
+    height: 1px;
+    background-color: var(--tt-popover-border-color);
+  }
+}

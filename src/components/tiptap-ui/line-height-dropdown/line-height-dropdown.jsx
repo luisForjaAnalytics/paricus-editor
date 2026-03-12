@@ -13,6 +13,7 @@ import {
   DropdownMenuItem,
 } from "@/components/tiptap-ui-primitive/dropdown-menu"
 import { Card, CardBody } from "@/components/tiptap-ui-primitive/card"
+import { GREEN_ITEM_STYLE } from "@/lib/editor-config"
 
 const LINE_HEIGHTS = [0.5, 1, 1.15, 1.5, 2, 2.5, 3]
 
@@ -79,6 +80,7 @@ export const LineHeightDropdown = forwardRef(
             variant="ghost"
             role="button"
             tabIndex={-1}
+            data-active-state={activeHeight ? "on" : "off"}
             aria-label={t("toolbar.lineHeight")}
             tooltip={t("toolbar.lineHeight")}
             {...buttonProps}
@@ -99,7 +101,7 @@ export const LineHeightDropdown = forwardRef(
                       variant="ghost"
                       data-active-state={activeHeight === height ? "on" : "off"}
                       onClick={() => handleSelect(height)}
-                      style={{ justifyContent: "center", minWidth: "40px" }}
+                      style={{ justifyContent: "center", minWidth: "40px", ...GREEN_ITEM_STYLE }}
                     >
                       <span style={{ fontSize: "13px" }}>{height}</span>
                     </Button>

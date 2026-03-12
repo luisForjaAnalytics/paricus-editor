@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next"
 import { Button } from "@/components/tiptap-ui-primitive/button"
 import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
 import { PdfUploadIcon } from "@/components/tiptap-icons/pdf-upload-icon"
-import { convertPdfToHtml } from "@/lib/pdf-converter"
+// Lazy-loaded to avoid bundling pdfjs-dist + tesseract.js upfront
+const loadPdfConverter = () => import("@/lib/pdf-converter")
 import { sanitizeHtml } from "@/lib/sanitize-html"
 
 export const PdfImportButton = forwardRef(
@@ -23,12 +24,13 @@ export const PdfImportButton = forwardRef(
         setProgress(null)
 
         try {
+          const { convertPdfToHtml } = await loadPdfConverter()
           const { html } = await convertPdfToHtml(file, (current, total) => {
             setProgress(t("errors.pdfOcrProgress", { current, total }))
           })
           editor.commands.setContent(sanitizeHtml(html))
         } catch (error) {
-          console.error(t("errors.pdfImportFailed"), error)
+          if (import.meta.env.DEV) console.error(t("errors.pdfImportFailed"), error)
         } finally {
           setIsImporting(false)
           setProgress(null)

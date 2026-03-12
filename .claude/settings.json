@@ -26,10 +26,26 @@
       "Bash(grep -n \"^.*//.*import\\\\|^[[:space:]]*\\\\/\\\\*\" /c/desarrollo/FORJA/paricus-editor/src/SimpleEditor.jsx)",
       "Bash(grep -l \"useTranslation\\\\|i18n\" /c/desarrollo/FORJA/paricus-editor/src/components/tiptap-ui/*/use*.js)",
       "Bash(grep -h \"const handleClick = useCallback\" /c/desarrollo/FORJA/paricus-editor/src/components/tiptap-ui/**/*.jsx)",
-      "Bash(grep -r \"tooltip=.*\\\\`\" /c/desarrollo/FORJA/paricus-editor/src/components/tiptap-ui --include=\"*.jsx\")"
+      "Bash(grep -r \"tooltip=.*\\\\`\" /c/desarrollo/FORJA/paricus-editor/src/components/tiptap-ui --include=\"*.jsx\")",
+      "Bash(find c:desarrolloFORJAparicus-editorsrcextensions -type f -name *.js)",
+      "Bash(npm install:*)",
+      "Bash(node -e \"const d = require\\(''docx''\\); console.log\\(''BorderStyle:'', Object.keys\\(d.BorderStyle || {}\\).slice\\(0,10\\)\\); console.log\\(''Has TableBorders:'', ''TableBorders'' in d\\)\")",
+      "Bash(node -e \"const d = require\\(''docx''\\); console.log\\(''NONE:'', ''NONE'' in d.BorderStyle, ''NIL:'', ''NIL'' in d.BorderStyle\\)\")",
+      "Bash(node -e \"const docx = require\\(''docx''\\); console.log\\(Object.keys\\(docx\\).filter\\(k => k.toLowerCase\\(\\).includes\\(''vert''\\) || k.toLowerCase\\(\\).includes\\(''align''\\) || k.toLowerCase\\(\\).includes\\(''margin''\\) || k.toLowerCase\\(\\).includes\\(''convert''\\)\\)\\)\")",
+      "Bash(npx -y tsx -e \"import * as docx from ''docx''; console.log\\(Object.keys\\(docx\\).filter\\(k => k.toLowerCase\\(\\).includes\\(''vert''\\) || k.toLowerCase\\(\\).includes\\(''align''\\) || k.toLowerCase\\(\\).includes\\(''margin''\\) || k.toLowerCase\\(\\).includes\\(''convert''\\)\\)\\)\")",
+      "Bash(node -e \"const docx = require\\(''docx''\\); console.log\\(''VerticalAlign:'', docx.VerticalAlign\\); console.log\\(''convertInchesToTwip:'', typeof docx.convertInchesToTwip\\)\")",
+      "Bash(grep -r \"column.*width\\\\|width.*column\\\\|tableLayout\\\\|colgroup\" /c/desarrollo/FORJA/paricus-editor/src --include=*.js --include=*.jsx)",
+      "Bash(xargs grep:*)",
+      "Bash(grep -r \"TableRow\\\\|TableHeader\\\\|colwidth\\\\|ResizeColumn\" /c/desarrollo/FORJA/paricus-editor/src --include=*.js --include=*.jsx)",
+      "Bash(xargs wc:*)",
+      "Bash(grep -n \"const CELL_COLORS\\\\|const WIDTH_OPTIONS\\\\|const FONT_SIZES\\\\|const FONT_FAMILIES\\\\|const LINE_HEIGHTS\" /c/desarrollo/FORJA/paricus-editor/src/components/tiptap-ui/*/*.jsx)",
+      "Bash(find /c/desarrollo/FORJA/paricus-editor -name *.test.js -o -name *.spec.js -o -name *.test.jsx -o -name *.spec.jsx)",
+      "Bash(find src:*)",
+      "Read(//c/desarrolloFORJA/paricus-editor/src/components/tiptap-ui/link-popover/**)"
     ],
     "additionalDirectories": [
-      "C:\\desarrollo\\FORJA\\paricus-editor\\src\\extensions"
+      "C:\\desarrollo\\FORJA\\paricus-editor\\src\\extensions",
+      "c:\\desarrollo\\FORJA\\paricus-editor\\src\\components\\tiptap-ui"
     ]
   }
 }

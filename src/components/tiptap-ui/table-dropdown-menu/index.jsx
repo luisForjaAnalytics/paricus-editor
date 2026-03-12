@@ -1,1 +1,1 @@
-export { TableDropdownMenu } from "./table-dropdown-menu"
+export { TableDropdownMenu, TableEditMenu } from "./table-dropdown-menu"

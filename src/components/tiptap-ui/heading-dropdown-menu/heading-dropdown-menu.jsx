@@ -19,6 +19,7 @@ import {
   DropdownMenuItem,
 } from "@/components/tiptap-ui-primitive/dropdown-menu"
 import { Card, CardBody } from "@/components/tiptap-ui-primitive/card"
+import { GREEN_ITEM_STYLE } from "@/lib/editor-config"
 
 /**
  * Dropdown menu component for selecting heading levels in a Tiptap editor.
@@ -92,7 +93,8 @@ export const HeadingDropdownMenu = forwardRef((
                     editor={editor}
                     level={level}
                     text={t("toolbar.headingLevel", { level })}
-                    showTooltip={false} />
+                    showTooltip={false}
+                    style={GREEN_ITEM_STYLE} />
                 </DropdownMenuItem>
               ))}
             </ButtonGroup>

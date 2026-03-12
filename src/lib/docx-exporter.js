@@ -12,10 +12,14 @@ import {
   TableRow,
   TableCell,
   WidthType,
+  BorderStyle,
   BookmarkStart,
   BookmarkEnd,
+  VerticalAlign,
+  LineRuleType,
 } from "docx"
 import { saveAs } from "file-saver"
+import { getProxyUrl } from "@/lib/editor-config"
 
 const HEADING_MAP = {
   H1: HeadingLevel.HEADING_1,
@@ -31,10 +35,59 @@ const ALIGN_MAP = {
   justify: AlignmentType.JUSTIFIED,
 }
 
+const NONE_BORDER = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" }
+const NO_BORDERS = {
+  top: NONE_BORDER,
+  bottom: NONE_BORDER,
+  left: NONE_BORDER,
+  right: NONE_BORDER,
+  insideHorizontal: NONE_BORDER,
+  insideVertical: NONE_BORDER,
+}
+
+/**
+ * Detects if a table should be rendered WITHOUT borders.
+ * Tables have borders by default (matching the editor view).
+ * Only removes borders if explicitly set to none/0 in the HTML.
+ */
+function tableHasNoBorders(tableEl) {
+  const borderAttr = tableEl.getAttribute("border")
+  if (borderAttr === "0") return true
+
+  const tableStyle = tableEl.getAttribute("style") || ""
+  if (/border\s*:\s*(none|0)/i.test(tableStyle)) return true
+
+  return false
+}
+
+// px to twips (1px ≈ 15 twips at 96 DPI: 1440 twips/inch ÷ 96 px/inch)
+const pxToTwip = (px) => Math.round(px * 15)
+
 function getAlignment(element) {
   const style = element.getAttribute("style") || ""
   const match = style.match(/text-align:\s*(left|center|right|justify)/)
   return match ? ALIGN_MAP[match[1]] : undefined
+}
+
+// Word only accepts these named highlight colors
+const WORD_HIGHLIGHTS = {
+  yellow: "yellow", cyan: "cyan", green: "green", magenta: "magenta",
+  red: "red", blue: "blue", darkYellow: "darkYellow", darkGreen: "darkGreen",
+  darkCyan: "darkCyan", darkBlue: "darkBlue", darkMagenta: "darkMagenta",
+  darkRed: "darkRed", lightGray: "lightGray", darkGray: "darkGray",
+}
+
+// Map common highlight hex values to Word highlight names
+const HEX_TO_WORD_HIGHLIGHT = {
+  "ffff00": "yellow", "fef9c3": "yellow", "fde68a": "yellow",
+  "00ffff": "cyan", "e0f2fe": "cyan", "bae6fd": "cyan", "dbeafe": "cyan",
+  "00ff00": "green", "dcfce7": "green", "bbf7d0": "green",
+  "ff00ff": "magenta", "f3e8ff": "magenta", "e9d5ff": "magenta",
+  "ff0000": "red", "ffe4e6": "red", "fecdd3": "red", "fee2e2": "red",
+  "f3f4f6": "lightGray", "f8f8f7": "lightGray", "e5e7eb": "lightGray",
+  "ffedd5": "darkYellow", "fdba74": "darkYellow", "fbecdd": "darkYellow",
+  "fce7f3": "magenta", "f9a8d4": "magenta", "fcf1f6": "magenta",
+  "f4eeee": "darkRed",
 }
 
 function resolveHighlightColor(element) {
@@ -42,30 +95,40 @@ function resolveHighlightColor(element) {
     element.getAttribute("data-color") ||
     element.style?.backgroundColor ||
     ""
-  if (!bgColor) return "yellow"
+  if (!bgColor) return { highlight: "yellow" }
+
+  let resolved = bgColor
   if (bgColor.startsWith("var(")) {
     const varName = bgColor.match(/var\(--([^)]+)\)/)?.[1]
     if (varName) {
       try {
-        // Try element first (works inside Shadow DOM), fall back to documentElement
         const root = element.getRootNode?.()?.host || document.documentElement
-        const resolved = getComputedStyle(root)
-          .getPropertyValue(`--${varName}`)
-          .trim()
-        if (resolved) return resolved
-      } catch {
-        // Silently fall back to the raw value
-      }
+        const val = getComputedStyle(root).getPropertyValue(`--${varName}`).trim()
+        if (val) resolved = val
+      } catch { /* fallback */ }
     }
   }
-  return bgColor || "yellow"
+
+  // Check if it's a named Word highlight
+  if (WORD_HIGHLIGHTS[resolved]) return { highlight: resolved }
+
+  // Convert to hex and try to map
+  const hex = colorToHex(resolved)
+  if (hex) {
+    const clean = hex.replace("#", "").toLowerCase()
+    const mapped = HEX_TO_WORD_HIGHLIGHT[clean]
+    if (mapped) return { highlight: mapped }
+    // Use shading for unmapped colors (supports any hex)
+    return { shading: { fill: clean } }
+  }
+
+  return { highlight: "yellow" }
 }
 
 async function imageToBase64(src) {
   if (src.startsWith("data:")) {
     const [meta, data] = src.split(",")
     const mime = meta.match(/data:([^;]+)/)?.[1] || "image/png"
-    // Decode dimensions from the data URI by loading into an Image
     const dims = await new Promise((resolve) => {
       const img = new window.Image()
       img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight })
@@ -74,8 +137,61 @@ async function imageToBase64(src) {
     })
     return { base64: data, mime, ...dims }
   }
+
+  // Strategy 1: Try to find the image already loaded in the editor DOM
+  // (avoids CORS issues since the browser already loaded it)
+  try {
+    const existingImg = document.querySelector(`img[src="${CSS.escape(src)}"]`)
+    if (existingImg && existingImg.complete && existingImg.naturalWidth > 0) {
+      const canvas = document.createElement("canvas")
+      canvas.width = existingImg.naturalWidth
+      canvas.height = existingImg.naturalHeight
+      canvas.getContext("2d").drawImage(existingImg, 0, 0)
+      const dataUrl = canvas.toDataURL("image/png")
+      const base64 = dataUrl.split(",")[1]
+      return { base64, mime: "image/png", width: existingImg.naturalWidth, height: existingImg.naturalHeight }
+    }
+  } catch (e) {
+    // DOM capture failed — try fetch strategies
+  }
+
+  // Strategy 2: Fetch the image (direct, then via proxy to bypass CORS)
+  const urls = [src]
+  const proxyUrl = getProxyUrl(src)
+  if (proxyUrl) urls.push(proxyUrl)
+  for (const url of urls) {
+    try {
+      const response = await fetch(url)
+      if (!response.ok) throw new Error(`Fetch status ${response.status}`)
+      const blob = await response.blob()
+      const mime = blob.type || "image/png"
+      const base64 = await new Promise((resolve) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result.split(",")[1])
+        reader.readAsDataURL(blob)
+      })
+      const objectUrl = URL.createObjectURL(blob)
+      const dims = await new Promise((resolve) => {
+        const img = new window.Image()
+        img.onload = () => {
+          URL.revokeObjectURL(objectUrl)
+          resolve({ width: img.naturalWidth, height: img.naturalHeight })
+        }
+        img.onerror = () => {
+          URL.revokeObjectURL(objectUrl)
+          resolve({ width: 300, height: 200 })
+        }
+        img.src = objectUrl
+      })
+      return { base64, mime, ...dims }
+    } catch (e) {
+      // Fetch failed for this URL — try next strategy
+    }
+  }
+
+  // Strategy 3: Load with crossOrigin + canvas
   return new Promise((resolve, reject) => {
-    const img = new Image()
+    const img = new window.Image()
     img.crossOrigin = "anonymous"
     const timeout = setTimeout(() => {
       img.src = ""
@@ -83,33 +199,97 @@ async function imageToBase64(src) {
     }, 10000)
     img.onload = () => {
       clearTimeout(timeout)
-      const canvas = document.createElement("canvas")
-      canvas.width = img.naturalWidth
-      canvas.height = img.naturalHeight
-      canvas.getContext("2d").drawImage(img, 0, 0)
-      const dataUrl = canvas.toDataURL("image/png")
-      const base64 = dataUrl.split(",")[1]
-      resolve({ base64, mime: "image/png", width: img.naturalWidth, height: img.naturalHeight })
+      try {
+        const canvas = document.createElement("canvas")
+        canvas.width = img.naturalWidth
+        canvas.height = img.naturalHeight
+        canvas.getContext("2d").drawImage(img, 0, 0)
+        const dataUrl = canvas.toDataURL("image/png")
+        const base64 = dataUrl.split(",")[1]
+        resolve({ base64, mime: "image/png", width: img.naturalWidth, height: img.naturalHeight })
+      } catch (e) {
+        reject(new Error("Canvas tainted: " + e.message))
+      }
     }
     img.onerror = () => {
       clearTimeout(timeout)
-      reject(new Error("Image load failed"))
+      reject(new Error("Image load failed with crossOrigin"))
     }
     img.src = src
   })
 }
 
-function colorToHex(color) {
-  if (!color) return undefined
-  if (color.startsWith("#")) return color.slice(1)
-  const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/)
-  if (match) {
-    const r = parseInt(match[1], 10).toString(16).padStart(2, "0")
-    const g = parseInt(match[2], 10).toString(16).padStart(2, "0")
-    const b = parseInt(match[3], 10).toString(16).padStart(2, "0")
-    return `${r}${g}${b}`
+/**
+ * Gets background color from a table cell, checking inline style,
+ * computed style, and first child wrapper elements.
+ */
+function getCellBackground(cell) {
+  // 1. Check inline style
+  const inline = cell.style?.backgroundColor
+  if (inline && inline !== "transparent" && inline !== "rgba(0, 0, 0, 0)") return inline
+
+  // 2. Try computed style (catches CSS-applied backgrounds)
+  try {
+    const computed = getComputedStyle(cell).backgroundColor
+    if (computed && computed !== "transparent" && computed !== "rgba(0, 0, 0, 0)") return computed
+  } catch { /* not in DOM */ }
+
+  // 3. Check first child element (Freshdesk wraps content in colored divs)
+  const firstChild = cell.querySelector(":scope > div, :scope > p, :scope > span")
+  if (firstChild) {
+    const childBg = firstChild.style?.backgroundColor
+    if (childBg && childBg !== "transparent" && childBg !== "rgba(0, 0, 0, 0)") return childBg
   }
-  return color
+
+  return null
+}
+
+/**
+ * Gets text color from a table cell or wrapper element.
+ */
+function getCellTextColor(cell) {
+  const inline = cell.style?.color
+  if (inline && inline !== "inherit") return colorToHex(inline)
+
+  try {
+    const computed = getComputedStyle(cell).color
+    if (computed) {
+      const hex = colorToHex(computed)
+      // Skip default black
+      if (hex && hex !== "000000") return hex
+    }
+  } catch { /* not in DOM */ }
+
+  const firstChild = cell.querySelector(":scope > div, :scope > p, :scope > span")
+  if (firstChild) {
+    const childColor = firstChild.style?.color
+    if (childColor && childColor !== "inherit") return colorToHex(childColor)
+  }
+
+  return null
+}
+
+function colorToHex(color) {
+  if (!color || color === "inherit" || color === "transparent" || color === "initial" || color === "unset" || color === "currentcolor" || color === "currentColor") {
+    return undefined
+  }
+  if (color.startsWith("#")) return color.slice(1).replace(/^([0-9a-f]{3})$/i, "$1$1").slice(0, 6)
+  const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/)
+  if (match) {
+    let r = parseInt(match[1], 10)
+    let g = parseInt(match[2], 10)
+    let b = parseInt(match[3], 10)
+    const a = match[4] !== undefined ? parseFloat(match[4]) : 1
+    // Blend alpha with white background to get the visible color
+    if (a < 1) {
+      r = Math.round(r * a + 255 * (1 - a))
+      g = Math.round(g * a + 255 * (1 - a))
+      b = Math.round(b * a + 255 * (1 - a))
+    }
+    return r.toString(16).padStart(2, "0") + g.toString(16).padStart(2, "0") + b.toString(16).padStart(2, "0")
+  }
+  // Unknown format — return undefined instead of invalid value
+  return undefined
 }
 
 function collectTextRuns(node, inherited = {}) {
@@ -128,6 +308,7 @@ function collectTextRuns(node, inherited = {}) {
           superScript: inherited.superScript,
           subScript: inherited.subScript,
           highlight: inherited.highlight,
+          shading: inherited.highlightShading,
           font: inherited.code ? "Courier New" : inherited.fontFamily || undefined,
           size: inherited.code ? 20 : inherited.fontSize || undefined,
         }
@@ -148,17 +329,23 @@ function collectTextRuns(node, inherited = {}) {
     else if (tag === "SUP") next.superScript = true
     else if (tag === "SUB") next.subScript = true
     else if (tag === "CODE") next.code = true
-    else if (tag === "MARK") next.highlight = resolveHighlightColor(child)
-    else if (tag === "SPAN") {
-      const color = child.style?.color
-      if (color) next.color = colorToHex(color)
-      const fontFamily = child.style?.fontFamily
-      if (fontFamily) next.fontFamily = fontFamily.replace(/['"]/g, "")
-      const fs = child.style?.fontSize
-      if (fs) {
-        // Convert pt to half-points for docx (e.g. "12pt" → 24)
-        const pt = parseFloat(fs)
-        if (pt) next.fontSize = pt * 2
+    else if (tag === "MARK") {
+      const hl = resolveHighlightColor(child)
+      if (hl.highlight) next.highlight = hl.highlight
+      if (hl.shading) next.highlightShading = hl.shading
+    }
+    // Check for inline color, font, and size on any element (not just SPAN)
+    const elColor = child.style?.color
+    const elColorHex = elColor ? colorToHex(elColor) : undefined
+    if (elColorHex) next.color = elColorHex
+    const elFont = child.style?.fontFamily
+    if (elFont) next.fontFamily = elFont.replace(/['";<>{}()]/g, "").trim()
+    const elFs = child.style?.fontSize
+    if (elFs) {
+      const val = parseFloat(elFs)
+      if (val) {
+        // px needs conversion, pt is direct
+        next.fontSize = elFs.includes("px") ? Math.round(val * 0.75 * 2 ) : Math.round(val * 2 )
       }
     }
 
@@ -188,8 +375,10 @@ function collectTextRuns(node, inherited = {}) {
     }
 
     if (tag === "IMG") {
-      // Images in inline context are collected as placeholders — handled at block level
-      runs.push({ __image: child.getAttribute("src") })
+      // Capture HTML-specified dimensions for proper sizing in export
+      const imgWidth = parseInt(child.getAttribute("width") || child.style.width, 10) || null
+      const imgHeight = parseInt(child.getAttribute("height") || child.style.height, 10) || null
+      runs.push({ __image: child.getAttribute("src"), __imgWidth: imgWidth, __imgHeight: imgHeight })
       continue
     }
 
@@ -200,6 +389,11 @@ function collectTextRuns(node, inherited = {}) {
 }
 
 let bookmarkCounter = 0
+let _defaultFont = "Inter"
+let _listLineSpacing = 384   // auto-detected from li p line-height (twips, exact)
+let _listParaAfter = 0       // auto-detected from li p margin
+let _tableCellLineSpacing = 240 // auto-detected from td line-height (twips, exact)
+let _useExactLineSpacing = false // true when we measure exact px values
 
 async function processImageRuns(runs) {
   const processed = []
@@ -212,21 +406,32 @@ async function processImageRuns(runs) {
     }
     if (run.__image) {
       try {
-        const { base64, width, height } = await imageToBase64(run.__image)
+        const { base64, width: naturalW, height: naturalH } = await imageToBase64(run.__image)
+        // Use HTML-specified dimensions if available, otherwise use natural dimensions
+        let finalW = run.__imgWidth || naturalW || 300
+        let finalH = run.__imgHeight || naturalH || 200
+        // If only width is specified, calculate height proportionally
+        if (run.__imgWidth && !run.__imgHeight && naturalW > 0) {
+          finalH = Math.round(naturalH * (run.__imgWidth / naturalW))
+        } else if (run.__imgHeight && !run.__imgWidth && naturalH > 0) {
+          finalW = Math.round(naturalW * (run.__imgHeight / naturalH))
+        }
+        // Cap at max width for page fit
         const maxWidth = 600
-        const scale = width > maxWidth ? maxWidth / width : 1
+        if (finalW > maxWidth) {
+          const scale = maxWidth / finalW
+          finalW = maxWidth
+          finalH = Math.round(finalH * scale)
+        }
         processed.push(
           new ImageRun({
             data: Uint8Array.from(atob(base64), (c) => c.charCodeAt(0)),
-            transformation: {
-              width: Math.round(width * scale),
-              height: Math.round(height * scale),
-            },
+            transformation: { width: finalW, height: finalH },
             type: "png",
           })
         )
-      } catch {
-        // Skip broken images
+      } catch (err) {
+        // Image export failed — skip this run
       }
     } else {
       processed.push(run)
@@ -235,14 +440,21 @@ async function processImageRuns(runs) {
   return processed
 }
 
-function parseBlockElements(container) {
+function parseBlockElements(container, inherited = {}) {
   const blocks = []
 
   for (const node of container.childNodes) {
     if (node.nodeType === Node.TEXT_NODE) {
       const text = node.textContent?.trim()
       if (text) {
-        blocks.push({ type: "paragraph", runs: [new TextRun({ text })], alignment: undefined })
+        const runOpts = { text }
+        if (inherited.fontFamily) runOpts.font = inherited.fontFamily
+        if (inherited.fontSize) runOpts.size = inherited.fontSize
+        if (inherited.color) runOpts.color = inherited.color
+        if (inherited.bold) runOpts.bold = true
+        const block = { type: "paragraph", runs: [new TextRun(runOpts)], alignment: inherited._cellAlignment }
+        if (inherited._insideTable) block._insideTable = true
+        blocks.push(block)
       }
       continue
     }
@@ -257,7 +469,7 @@ function parseBlockElements(container) {
       blocks.push({
         type: "heading",
         level: HEADING_MAP[tag],
-        runs: collectTextRuns(node),
+        runs: collectTextRuns(node, inherited),
         alignment,
       })
       continue
@@ -265,20 +477,24 @@ function parseBlockElements(container) {
 
     // Paragraphs
     if (tag === "P") {
-      blocks.push({ type: "paragraph", runs: collectTextRuns(node), alignment })
+      // Inside table cells: use cell alignment as fallback, reduce spacing
+      const paraAlignment = alignment || inherited._cellAlignment
+      const block = { type: "paragraph", runs: collectTextRuns(node, inherited), alignment: paraAlignment }
+      if (inherited._insideTable) block._insideTable = true
+      blocks.push(block)
       continue
     }
 
     // Lists
     if (tag === "UL" || tag === "OL") {
       const listType = tag === "OL" ? "ordered" : "unordered"
-      collectListItems(node, blocks, listType, 0)
+      collectListItems(node, blocks, listType, 0, inherited)
       continue
     }
 
     // Blockquote
     if (tag === "BLOCKQUOTE") {
-      const inner = parseBlockElements(node)
+      const inner = parseBlockElements(node, inherited)
       for (const block of inner) {
         block.indent = (block.indent || 0) + 720
         block.border = true
@@ -314,7 +530,9 @@ function parseBlockElements(container) {
 
     // Images at block level
     if (tag === "IMG") {
-      blocks.push({ type: "image", src: node.getAttribute("src") })
+      const imgW = parseInt(node.getAttribute("width") || node.style.width, 10) || null
+      const imgH = parseInt(node.getAttribute("height") || node.style.height, 10) || null
+      blocks.push({ type: "image", src: node.getAttribute("src"), imgWidth: imgW, imgHeight: imgH })
       continue
     }
 
@@ -332,18 +550,18 @@ function parseBlockElements(container) {
 
     // Task list or any div/wrapper
     if (tag === "DIV" || tag === "SECTION") {
-      blocks.push(...parseBlockElements(node))
+      blocks.push(...parseBlockElements(node, inherited))
       continue
     }
 
     // Fallback: treat as paragraph
-    blocks.push({ type: "paragraph", runs: collectTextRuns(node), alignment })
+    blocks.push({ type: "paragraph", runs: collectTextRuns(node, inherited), alignment })
   }
 
   return blocks
 }
 
-function collectListItems(listNode, blocks, listType, level) {
+function collectListItems(listNode, blocks, listType, level, inherited = {}) {
   for (const li of listNode.children) {
     if (li.tagName !== "LI") continue
 
@@ -362,39 +580,52 @@ function collectListItems(listNode, blocks, listType, level) {
         // Task list label — skip the checkbox input, collect text from the label content
         continue
       } else if (child.nodeType === Node.ELEMENT_NODE && (child.tagName === "DIV" || child.tagName === "P")) {
-        textNodes.push(...collectTextRuns(child))
+        textNodes.push(...collectTextRuns(child, inherited))
       } else if (child.nodeType === Node.TEXT_NODE) {
         const text = child.textContent
-        if (text) textNodes.push(new TextRun({ text }))
+        if (text) {
+          const runOpts = { text }
+          if (inherited.fontFamily) runOpts.font = inherited.fontFamily
+          if (inherited.fontSize) runOpts.size = inherited.fontSize
+          if (inherited.color) runOpts.color = inherited.color
+          if (inherited.bold) runOpts.bold = true
+          textNodes.push(new TextRun(runOpts))
+        }
       } else if (child.nodeType === Node.ELEMENT_NODE) {
-        textNodes.push(...collectTextRuns(child))
+        textNodes.push(...collectTextRuns(child, inherited))
       }
     }
 
     if (isTask) {
-      const prefix = checked ? "☑ " : "☐ "
-      blocks.push({
+      const taskBlock = {
         type: "paragraph",
         runs: [new TextRun({ text: prefix }), ...textNodes],
         indent: level * 360 + 360,
-      })
+      }
+      if (inherited._insideTable) taskBlock._insideTable = true
+      blocks.push(taskBlock)
     } else {
-      blocks.push({
+      const listBlock = {
         type: "list",
         listType,
         level,
         runs: textNodes.length ? textNodes : [new TextRun({ text: " " })],
-      })
+      }
+      if (inherited._insideTable) listBlock._insideTable = true
+      blocks.push(listBlock)
     }
 
     for (const nested of nestedLists) {
       const nestedType = nested.tagName === "OL" ? "ordered" : "unordered"
-      collectListItems(nested, blocks, nestedType, level + 1)
+      collectListItems(nested, blocks, nestedType, level + 1, inherited)
     }
   }
 }
 
-async function blocksToDocxChildren(blocks) {
+// Available table width in twips (set by convertHtmlToDocx based on page size and margins)
+let _tableAvailWidthTwips = 9360 // default: Letter page 12240tw - 2*1440tw margins
+
+async function blocksToDocxChildren(blocks, inheritedColor) {
   const children = []
 
   for (const block of blocks) {
@@ -411,22 +642,175 @@ async function blocksToDocxChildren(blocks) {
     if (block.type === "table") {
       try {
         const tableEl = block.element
+        const noBorders = tableHasNoBorders(tableEl)
         const tableRows = []
-        const rows = tableEl.querySelectorAll("tr")
+        // Only select direct child rows (not from nested tables)
+        const rows = tableEl.querySelectorAll(":scope > thead > tr, :scope > tbody > tr, :scope > tfoot > tr, :scope > tr")
+
+        // Read column widths: prefer editor-stamped ratios, then data-colwidth, then rendered
+        // Use DXA (twips) for precise control — Letter page = 12240tw, minus margins
+        const colWidthMap = []
+        if (rows.length > 0) {
+          // Find the row with the most individual cells (skip header rows with colspan)
+          let bestRow = rows[0], bestCount = 0
+          for (const r of rows) {
+            const cells = r.querySelectorAll(":scope > th, :scope > td")
+            if (cells.length > bestCount) { bestCount = cells.length; bestRow = r }
+          }
+          const refCells = bestRow.querySelectorAll(":scope > th, :scope > td")
+
+          // 1) Check for editor-stamped ratios (from real editor DOM layout)
+          let hasEditorRatio = false
+          for (const c of refCells) {
+            const ratio = parseFloat(c.getAttribute("data-editor-ratio"))
+            const cs = parseInt(c.getAttribute("colspan") || "1", 10)
+            if (ratio > 0) hasEditorRatio = true
+            colWidthMap.push({ ratio: ratio || 0, colspan: cs })
+          }
+
+          if (!hasEditorRatio) {
+            // 2) Try data-colwidth (TipTap's column width storage)
+            let totalWidth = 0
+            for (let i = 0; i < refCells.length; i++) {
+              const cw = refCells[i].getAttribute("data-colwidth")
+              const widths = cw ? cw.split(",").map(Number) : []
+              const cellTotal = widths.length > 0 ? widths.reduce((a, b) => a + b, 0) : 0
+              colWidthMap[i].px = cellTotal
+              totalWidth += cellTotal
+            }
+            if (totalWidth > 0) {
+              for (const entry of colWidthMap) {
+                entry.ratio = entry.px / totalWidth
+              }
+            } else {
+              // 3) Fallback: read rendered widths from the off-screen container
+              let totalRendered = 0
+              for (const c of refCells) totalRendered += c.offsetWidth
+              if (totalRendered > 0) {
+                for (let i = 0; i < colWidthMap.length; i++) {
+                  colWidthMap[i].ratio = refCells[i].offsetWidth / totalRendered
+                }
+              }
+            }
+          }
+        }
+
         for (const row of rows) {
-          const cells = row.querySelectorAll("th, td")
+          // Only direct child cells of this row
+          const cells = row.querySelectorAll(":scope > th, :scope > td")
           const tableCells = []
+          let cellIdx = 0
           for (const cell of cells) {
-            const cellRuns = collectTextRuns(cell)
-            const processedRuns = await processImageRuns(cellRuns)
             const colspan = parseInt(cell.getAttribute("colspan") || "1", 10)
             const rowspan = parseInt(cell.getAttribute("rowspan") || "1", 10)
+
+            // Cell width from column ratio — use DXA (twips) for precise sizing
+            let cellWidth
+            if (colWidthMap[cellIdx] && colWidthMap[cellIdx].ratio > 0) {
+              const twips = Math.round(colWidthMap[cellIdx].ratio * _tableAvailWidthTwips)
+              cellWidth = { size: twips, type: WidthType.DXA }
+            }
+            cellIdx++
+
+            // Read all computed styles once for this cell
+            let computedCell
+            try { computedCell = getComputedStyle(cell) } catch { /* not in DOM */ }
+
+            // Cell background color — check inline style, computed style, and inner wrappers
+            let cellShading
+            const cellBg = getCellBackground(cell)
+            if (cellBg && cellBg !== "rgba(0, 0, 0, 0)" && cellBg !== "transparent") {
+              const hex = colorToHex(cellBg)
+              if (hex) cellShading = { fill: hex.replace("#", "") }
+            }
+
+            // Cell borders: read color and width from computed style
+            let cellBorderConfig
+            if (noBorders) {
+              cellBorderConfig = { top: NONE_BORDER, bottom: NONE_BORDER, left: NONE_BORDER, right: NONE_BORDER }
+            } else if (computedCell) {
+              const bColor = colorToHex(computedCell.borderTopColor) || "D1D5DB"
+              const bWidthPx = parseFloat(computedCell.borderTopWidth) || 1
+              const bSize = Math.max(4, Math.round(bWidthPx * 6))
+              const border = { style: BorderStyle.SINGLE, size: bSize, color: bColor }
+              cellBorderConfig = { top: border, bottom: border, left: border, right: border }
+            }
+
+            // Vertical alignment — read from CSS (editor defaults to top)
+            let cellVertAlign = VerticalAlign.TOP
+            const vAlign = cell.style?.verticalAlign || (computedCell && computedCell.verticalAlign)
+            if (vAlign === "middle" || vAlign === "center") cellVertAlign = VerticalAlign.CENTER
+            else if (vAlign === "bottom") cellVertAlign = VerticalAlign.BOTTOM
+
+            // Text alignment — read from cell itself
+            const cellAlignment = getAlignment(cell) ||
+              (computedCell && ALIGN_MAP[computedCell.textAlign]) || undefined
+
+            // Collect inherited styles from the cell (inline first, then computed)
+            const cellInherited = { _insideTable: true }
+            if (cellAlignment) cellInherited._cellAlignment = cellAlignment
+            const cellTextColor = getCellTextColor(cell)
+            if (cellTextColor) cellInherited.color = cellTextColor
+
+            // Font: only set if explicitly different from document default
+            const inlineFont = cell.style?.fontFamily
+            if (inlineFont) {
+              const firstFont = inlineFont.split(",")[0].replace(/['";<>{}()]/g, "").trim()
+              if (firstFont && firstFont !== _defaultFont) cellInherited.fontFamily = firstFont
+            }
+            // Font size: only set if explicitly specified inline (not from computed/default)
+            const inlineFontSize = cell.style?.fontSize
+            if (inlineFontSize) {
+              const px = parseFloat(inlineFontSize)
+              if (px) cellInherited.fontSize = Math.round(px * 0.75 * 2 )
+            }
+            // Bold: read from computed to detect TH font-weight
+            const cellFontWeight = computedCell && computedCell.fontWeight
+            if (cellFontWeight && (cellFontWeight === "bold" || parseInt(cellFontWeight, 10) >= 700)) {
+              cellInherited.bold = true
+            }
+
+            // Parse cell content as block elements to preserve lists, paragraphs, etc.
+            const cellBlocks = parseBlockElements(cell, cellInherited)
+            let cellChildren
+            if (cellBlocks.length > 0) {
+              cellChildren = await blocksToDocxChildren(cellBlocks, cellInherited)
+            } else {
+              // Fallback: treat as single paragraph with inline runs
+              const cellRuns = collectTextRuns(cell, cellInherited)
+              const processedRuns = await processImageRuns(cellRuns)
+              cellChildren = [new Paragraph({ children: processedRuns })]
+            }
+            // Ensure at least one paragraph (Word requires it)
+            if (cellChildren.length === 0) {
+              cellChildren = [new Paragraph({ children: [] })]
+            }
+
+            // Cell padding: read from computed style (editor uses CSS padding on td/th)
+            let cellMargins
+            if (computedCell) {
+              const padTop = pxToTwip(parseFloat(computedCell.paddingTop) || 0)
+              const padBottom = pxToTwip(parseFloat(computedCell.paddingBottom) || 0)
+              const padLeft = pxToTwip(parseFloat(computedCell.paddingLeft) || 0)
+              const padRight = pxToTwip(parseFloat(computedCell.paddingRight) || 0)
+              if (padTop || padBottom || padLeft || padRight) {
+                cellMargins = {
+                  top: padTop, bottom: padBottom,
+                  left: padLeft, right: padRight,
+                }
+              }
+            }
+
             tableCells.push(
               new TableCell({
-                children: [new Paragraph({ children: processedRuns })],
+                children: cellChildren,
                 columnSpan: colspan > 1 ? colspan : undefined,
                 rowSpan: rowspan > 1 ? rowspan : undefined,
-                shading: cell.tagName === "TH" ? { fill: "F0F0F0" } : undefined,
+                shading: cellShading,
+                borders: cellBorderConfig,
+                verticalAlign: cellVertAlign,
+                width: cellWidth,
+                margins: cellMargins,
               })
             )
           }
@@ -435,45 +819,94 @@ async function blocksToDocxChildren(blocks) {
           }
         }
         if (tableRows.length > 0) {
+          // Table alignment
+          const tableStyle = tableEl.getAttribute("style") || ""
+          let tableAlignment = AlignmentType.LEFT
+          if (tableStyle.includes("margin-left: auto") && tableStyle.includes("margin-right: auto")) {
+            tableAlignment = AlignmentType.CENTER
+          } else if (tableStyle.includes("margin-left: auto")) {
+            tableAlignment = AlignmentType.RIGHT
+          }
+
+          // Table width — match "width:" but NOT "min-width:"
+          const widthMatch = tableStyle.match(/(?<![-\w])width:\s*([^;]+)/)
+          const widthStr = widthMatch ? widthMatch[1].trim() : "100%"
+          const widthSize = parseInt(widthStr, 10) || 100
+          const widthType = widthStr === "auto" ? WidthType.AUTO : WidthType.PERCENTAGE
+
+          // Table-level borders: read from the first cell's computed border
+          let tableBorders
+          if (noBorders) {
+            tableBorders = NO_BORDERS
+          } else {
+            try {
+              const firstCell = tableEl.querySelector("td, th")
+              if (firstCell) {
+                const cs = getComputedStyle(firstCell)
+                const tblBColor = colorToHex(cs.borderTopColor) || "D1D5DB"
+                const tblBWidthPx = parseFloat(cs.borderTopWidth) || 1
+                const tblBSize = Math.max(4, Math.round(tblBWidthPx * 6))
+                const tblBorder = { style: BorderStyle.SINGLE, size: tblBSize, color: tblBColor }
+                tableBorders = {
+                  top: tblBorder, bottom: tblBorder, left: tblBorder, right: tblBorder,
+                  insideHorizontal: tblBorder, insideVertical: tblBorder,
+                }
+              }
+            } catch { /* fallback to default */ }
+          }
+
           children.push(
             new Table({
               rows: tableRows,
-              width: { size: 100, type: WidthType.PERCENTAGE },
+              width: { size: widthSize, type: widthType },
+              alignment: tableAlignment,
+              borders: tableBorders,
             })
           )
         }
-      } catch {
-        // Skip broken tables
+      } catch (e) {
+        // Table export failed — skip this block
       }
       continue
     }
 
     if (block.type === "image") {
       try {
-        const { base64, width, height } = await imageToBase64(block.src)
+        const { base64, width: naturalW, height: naturalH } = await imageToBase64(block.src)
+        let finalW = block.imgWidth || naturalW || 300
+        let finalH = block.imgHeight || naturalH || 200
+        if (block.imgWidth && !block.imgHeight && naturalW > 0) {
+          finalH = Math.round(naturalH * (block.imgWidth / naturalW))
+        } else if (block.imgHeight && !block.imgWidth && naturalH > 0) {
+          finalW = Math.round(naturalW * (block.imgHeight / naturalH))
+        }
         const maxWidth = 600
-        const scale = width > maxWidth ? maxWidth / width : 1
+        if (finalW > maxWidth) {
+          const s = maxWidth / finalW
+          finalW = maxWidth
+          finalH = Math.round(finalH * s)
+        }
         children.push(
           new Paragraph({
             children: [
               new ImageRun({
                 data: Uint8Array.from(atob(base64), (c) => c.charCodeAt(0)),
-                transformation: {
-                  width: Math.round(width * scale),
-                  height: Math.round(height * scale),
-                },
+                transformation: { width: finalW, height: finalH },
                 type: "png",
               }),
             ],
           })
         )
-      } catch {
-        // Skip broken images
+      } catch (err) {
+        // Image export failed — skip this block
       }
       continue
     }
 
     const runs = block.runs ? await processImageRuns(block.runs) : []
+
+    // Table cell spacing: auto-detected from td line-height
+    const tableCellSpacing = block._insideTable ? { before: 0, after: 0, line: _tableCellLineSpacing, lineRule: LineRuleType.EXACTLY } : undefined
 
     if (block.type === "heading") {
       children.push(
@@ -481,21 +914,26 @@ async function blocksToDocxChildren(blocks) {
           children: runs,
           heading: block.level,
           alignment: block.alignment,
+          spacing: tableCellSpacing,
         })
       )
       continue
     }
 
     if (block.type === "list") {
-      children.push(
-        new Paragraph({
-          children: runs,
-          numbering: {
-            reference: block.listType === "ordered" ? "ordered-list" : "unordered-list",
-            level: block.level,
-          },
-        })
-      )
+      // Lists always use list spacing (from li p CSS), even inside tables.
+      // In the editor, li p { line-height: 1.6 } applies regardless of table context.
+      // Proportional spacing for lists (Word handles font metrics)
+      const listSpacing = { line: _listLineSpacing, after: _listParaAfter }
+      const listOpts = {
+        children: runs,
+        numbering: {
+          reference: block.listType === "ordered" ? "ordered-list" : "unordered-list",
+          level: block.level,
+        },
+        spacing: listSpacing,
+      }
+      children.push(new Paragraph(listOpts))
       continue
     }
 
@@ -503,6 +941,10 @@ async function blocksToDocxChildren(blocks) {
     const paragraphOptions = {
       children: runs,
       alignment: block.alignment,
+    }
+
+    if (tableCellSpacing) {
+      paragraphOptions.spacing = tableCellSpacing
     }
 
     if (block.indent) {
@@ -526,13 +968,370 @@ async function blocksToDocxChildren(blocks) {
 }
 
 export async function convertHtmlToDocx(html) {
+  bookmarkCounter = 0
   const container = document.createElement("div")
+  // Apply editor classes so CSS rules (fonts, colors, backgrounds) cascade properly
+  container.className = "tiptap ProseMirror"
   container.innerHTML = html
+  // Temporarily add to DOM so getComputedStyle works for colors
+  // Match editor width so table auto-layout produces the same column proportions
+  const editorEl0 = document.querySelector(".tiptap.ProseMirror")
+  const editorWidth = editorEl0 ? editorEl0.offsetWidth : 900
+  container.style.cssText = `position:fixed;left:-9999px;top:-9999px;opacity:0;pointer-events:none;width:${editorWidth}px;`
+  document.body.appendChild(container)
 
-  const blocks = parseBlockElements(container)
-  const children = await blocksToDocxChildren(blocks)
+  // Stamp real column widths from the actual editor DOM onto container tables
+  // The editor has accurate CSS layout; the off-screen container may differ
+  if (editorEl0) {
+    const editorTables = editorEl0.querySelectorAll("table")
+    const containerTables = container.querySelectorAll("table")
+    for (let t = 0; t < Math.min(editorTables.length, containerTables.length); t++) {
+      const eRows = editorTables[t].querySelectorAll(":scope > thead > tr, :scope > tbody > tr, :scope > tfoot > tr, :scope > tr")
+      const cRows = containerTables[t].querySelectorAll(":scope > thead > tr, :scope > tbody > tr, :scope > tfoot > tr, :scope > tr")
+      if (eRows.length > 0 && cRows.length > 0) {
+        // Find the row with the most individual cells (skip rows with colspan headers)
+        let bestRowIdx = 0, bestCellCount = 0
+        for (let r = 0; r < eRows.length; r++) {
+          const cells = eRows[r].querySelectorAll(":scope > th, :scope > td")
+          if (cells.length > bestCellCount) { bestCellCount = cells.length; bestRowIdx = r }
+        }
+        const eCells = eRows[bestRowIdx].querySelectorAll(":scope > th, :scope > td")
+        const cCells = cRows[bestRowIdx]?.querySelectorAll(":scope > th, :scope > td")
+        if (cCells) {
+          let totalW = 0
+          for (const c of eCells) totalW += c.offsetWidth
+          if (totalW > 0 && eCells.length === cCells.length) {
+            for (let i = 0; i < eCells.length; i++) {
+              // Store precise ratio (4 decimals) to avoid rounding errors on narrow columns
+              cCells[i].setAttribute("data-editor-ratio", (eCells[i].offsetWidth / totalW).toFixed(4))
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Read all styles from the editor's actual CSS (computed styles)
+  let defaultFont = "Inter"
+  let defaultSize = 22 // fallback: 11pt in half-points
+  let defaultHeadingSizes = { h1: 52, h2: 40, h3: 32, h4: 28 }
+  let defaultLineSpacing = 276 // fallback: ~1.15x (proportional, or twips if exact)
+  _useExactLineSpacing = false
+  let defaultParaAfter = 120
+  let listIndentPerLevel = 400 // fallback in twips
+  let listHanging = 200
+  let pageMargins = null // auto-detected from editor padding
+
+  // px to half-points (1px = 0.75pt at 96 DPI, half-points = pt * 2)
+  const pxToHalfPt = (px) => Math.round(px * 0.75 * 2)
+
+  // Track probe elements created for style detection so we can remove them before parsing
+  const probeElements = []
+
+  try {
+    const editorEl = document.querySelector(".tiptap.ProseMirror")
+    const styleSource = editorEl || container
+
+    // --- Font & size from <p> ---
+    // Use a non-first-child <p> for accurate line-height (CSS: p:not(:first-child) { line-height: 1.6 })
+    let probe = null
+    // Try to find a non-first-child, non-table paragraph in the editor
+    const editorPs = styleSource.querySelectorAll(":scope > p")
+    for (const p of editorPs) {
+      if (p !== p.parentElement?.firstElementChild) { probe = p; break }
+    }
+    // Fallback: any <p> from editor or container
+    if (!probe) probe = styleSource.querySelector("p") || container.querySelector("p")
+    // Last resort: create two probe <p> so the second gets p:not(:first-child) styles
+    if (!probe) {
+      const dummy = document.createElement("p")
+      dummy.textContent = "\u00A0"
+      container.appendChild(dummy)
+      probeElements.push(dummy)
+      probe = document.createElement("p")
+      probe.textContent = "\u00A0"
+      container.appendChild(probe)
+      probeElements.push(probe)
+    }
+    const cs = getComputedStyle(probe)
+    if (cs.fontFamily) {
+      // Parse font-family chain and pick the best one available as a system font
+      // Web fonts (Google Fonts, etc.) aren't available in Word, so we need a system font
+      const fontChain = cs.fontFamily.split(",").map(f => f.replace(/['"]/g, "").trim())
+      defaultFont = fontChain[0] // start with first choice
+      // Detect if primary font is a web font (loaded via @font-face / Google Fonts).
+      // Web fonts work in the browser but NOT in Word, so we must substitute with
+      // a system font and scale sizes to match the visual appearance.
+      // Use document.fonts API: if any FontFace entries match the name, it's a web font.
+      const primaryName = fontChain[0]
+      // Detect web font using two methods:
+      // 1) Check document.fonts for @font-face entries (Google Fonts, etc.)
+      // 2) Check against known system fonts list as fallback
+      const SYSTEM_FONTS = new Set([
+        "arial", "calibri", "cambria", "comic sans ms", "consolas", "courier new",
+        "georgia", "helvetica", "impact", "lucida console", "lucida sans", "palatino",
+        "segoe ui", "tahoma", "times new roman", "trebuchet ms", "verdana",
+        "arial black", "book antiqua", "garamond", "century gothic",
+        "franklin gothic", "candara", "corbel", "constantia",
+        // macOS
+        "san francisco", "helvetica neue", "avenir", "futura", "gill sans",
+        "optima", "baskerville", "didot", "menlo", "monaco",
+      ])
+      let isWebFont = false
+      // Method 1: check document.fonts API
+      if (document.fonts) {
+        try {
+          for (const face of document.fonts) {
+            const faceName = face.family.replace(/['"]/g, "").trim()
+            if (faceName.toLowerCase() === primaryName.toLowerCase() && face.status === "loaded") {
+              isWebFont = true
+              break
+            }
+          }
+        } catch (e) { /* iteration not supported */ }
+      }
+      // Method 2: if not found in document.fonts at all, check system fonts list
+      if (!isWebFont && !SYSTEM_FONTS.has(primaryName.toLowerCase())) {
+        isWebFont = true // not a known system font → likely a web font
+      }
+      // Font detection complete
+      if (isWebFont) {
+        // Find the best system font substitute from the font-family chain
+        const GENERIC_TO_SYSTEM = {
+          "sans-serif": "Calibri", "serif": "Times New Roman",
+          "system-ui": "Segoe UI", "cursive": "Comic Sans MS",
+        }
+        const generic = new Set(Object.keys(GENERIC_TO_SYSTEM).concat(["monospace", "fantasy"]))
+        let foundFallback = false
+        for (let i = 1; i < fontChain.length; i++) {
+          const name = fontChain[i]
+          if (generic.has(name)) {
+            const mapped = GENERIC_TO_SYSTEM[name]
+            if (mapped) { defaultFont = mapped; foundFallback = true; break }
+            continue
+          }
+          // Named font in chain — check if it's NOT a web font (i.e. system font)
+          let alsoWeb = false
+          for (const face of document.fonts) {
+            if (face.family.replace(/['"]/g, "").trim().toLowerCase() === name.toLowerCase()) {
+              alsoWeb = true; break
+            }
+          }
+          if (!alsoWeb) { defaultFont = name; foundFallback = true; break }
+        }
+        if (!foundFallback) defaultFont = "Calibri"
+        // Web font mapped to system fallback
+      }
+      _defaultFont = defaultFont
+    }
+    const computedFontSize = parseFloat(cs.fontSize)
+    if (computedFontSize) {
+      defaultSize = pxToHalfPt(computedFontSize)
+    }
+
+    // --- Line height from <p> ---
+    // Measure the web font's natural "normal" line-height. Word's line:240 = single spacing
+    // corresponds to CSS line-height:normal. So we divide CSS lhPx by the font's natural
+    // height and multiply by 240 to get the correct Word proportional value.
+    // This works well because Word now uses Calibri (system font) and handles its own metrics.
+    let webNormalLhPx = computedFontSize * 1.2
+    {
+      const nlhProbe = document.createElement("p")
+      nlhProbe.textContent = "Xpg"
+      nlhProbe.style.cssText = `margin:0;padding:0;border:0;line-height:normal;font-size:${computedFontSize}px;font-family:${cs.fontFamily};`
+      container.appendChild(nlhProbe)
+      const nlh = nlhProbe.getBoundingClientRect().height
+      nlhProbe.remove()
+      if (nlh > 0) webNormalLhPx = nlh
+    }
+    const computedLineHeight = cs.lineHeight
+    const lhPx = parseFloat(computedLineHeight)
+    if (lhPx && webNormalLhPx > 0) {
+      // Proportional: CSS line-height / web font's normal × 240
+      defaultLineSpacing = Math.round((lhPx / webNormalLhPx) * 240)
+      _useExactLineSpacing = false // proportional for body/list
+      // Line spacing calculated from CSS
+    } else if (computedLineHeight === "normal") {
+      defaultLineSpacing = 240
+      _useExactLineSpacing = false
+    }
+
+    // --- Paragraph spacing (margin-top of paragraphs) ---
+    const pMarginBottom = parseFloat(cs.marginBottom) || 0
+    const pMarginTop = parseFloat(cs.marginTop) || 0
+    if (pMarginTop > 0 || pMarginBottom > 0) {
+      defaultParaAfter = pxToTwip(Math.max(pMarginTop, pMarginBottom) * 0.5)
+    }
+
+    // --- Heading sizes ---
+    for (const [hTag, hpKey] of [["h1", "h1"], ["h2", "h2"], ["h3", "h3"], ["h4", "h4"]]) {
+      let hProbe = styleSource.querySelector(hTag) || container.querySelector(hTag)
+      if (!hProbe) {
+        hProbe = document.createElement(hTag)
+        hProbe.textContent = "\u00A0"
+        container.appendChild(hProbe)
+        probeElements.push(hProbe)
+      }
+      const hCs = getComputedStyle(hProbe)
+      const hSize = parseFloat(hCs.fontSize)
+      if (hSize) {
+        defaultHeadingSizes[hpKey] = Math.round(pxToHalfPt(hSize) )
+      }
+    }
+
+    // --- List indentation from <ul> ---
+    let ulProbe = styleSource.querySelector("ul") || container.querySelector("ul")
+    if (!ulProbe) {
+      ulProbe = document.createElement("ul")
+      const li = document.createElement("li")
+      li.textContent = "\u00A0"
+      ulProbe.appendChild(li)
+      container.appendChild(ulProbe)
+      probeElements.push(ulProbe)
+    }
+    const ulCs = getComputedStyle(ulProbe)
+    const ulPadLeft = parseFloat(ulCs.paddingLeft) || 0
+    if (ulPadLeft > 0) {
+      listIndentPerLevel = pxToTwip(ulPadLeft)
+      listHanging = Math.round(listIndentPerLevel * 0.5)
+    }
+
+    // --- List item paragraph spacing (li p has margin-top:0 and its own line-height) ---
+    let liPProbe = styleSource.querySelector("li p") || container.querySelector("li p")
+    if (!liPProbe && ulProbe) {
+      const liEl = ulProbe.querySelector("li")
+      if (liEl) {
+        liPProbe = document.createElement("p")
+        liPProbe.textContent = "\u00A0"
+        liEl.appendChild(liPProbe)
+        probeElements.push(liPProbe)
+      }
+    }
+    if (liPProbe) {
+      const liPCs = getComputedStyle(liPProbe)
+      // Only use margin if it's from our CSS (not browser default 1em)
+      // Compare with default <p> margin to filter out browser defaults
+      const liMarginTop = parseFloat(liPCs.marginTop) || 0
+      const liMarginBottom = parseFloat(liPCs.marginBottom) || 0
+      // In our CSS, li p { margin-top: 0 } — use whichever is explicitly smaller
+      _listParaAfter = pxToTwip(Math.min(liMarginTop, liMarginBottom))
+      const liLhPx = parseFloat(liPCs.lineHeight)
+      if (liLhPx && webNormalLhPx > 0) {
+        // Same proportional formula as body text
+        _listLineSpacing = Math.round((liLhPx / webNormalLhPx) * 240)
+      } else if (liPCs.lineHeight === "normal") {
+        _listLineSpacing = 240
+      }
+    }
+
+    // --- Table cell paragraph spacing (td p has different line-height) ---
+    // Table cells often have line-height: normal (no explicit value), so we must
+    // measure the actual rendered line height using a probe element.
+    let tdProbe = styleSource.querySelector("td p") || styleSource.querySelector("td") ||
+                  container.querySelector("td p") || container.querySelector("td")
+    if (tdProbe) {
+      const tdCs = getComputedStyle(tdProbe)
+      const tdLhPx = parseFloat(tdCs.lineHeight)
+      if (tdLhPx && tdLhPx > 0) {
+        _tableCellLineSpacing = Math.round(pxToTwip(tdLhPx) )
+      } else {
+        // line-height: "normal" — measure actual rendered height via probe
+        const tdLhProbe = document.createElement("div")
+        tdLhProbe.textContent = "Xpg"
+        tdLhProbe.style.cssText = "margin:0;padding:0;border:0;line-height:normal;font-size:" + (tdCs.fontSize || cs.fontSize) + ";font-family:" + (tdCs.fontFamily || cs.fontFamily) + ";"
+        container.appendChild(tdLhProbe)
+        const tdLhMeasured = tdLhProbe.getBoundingClientRect().height
+        tdLhProbe.remove()
+        if (tdLhMeasured > 0) {
+          _tableCellLineSpacing = Math.round(pxToTwip(tdLhMeasured) )
+        } else {
+          // Fallback: use font-size * 1.15 (Word's "single" default)
+          const tdFontPx = parseFloat(tdCs.fontSize) || computedFontSize || 16
+          _tableCellLineSpacing = Math.round(pxToTwip(tdFontPx * 1.15) )
+        }
+      }
+      // Ensure table cell spacing is never less than the font size (prevents text overlap)
+      const tdFontTwips = pxToTwip(parseFloat(tdCs.fontSize) || computedFontSize || 16)
+      if (_tableCellLineSpacing < tdFontTwips * 1.1) {
+        _tableCellLineSpacing = Math.round(tdFontTwips * 1.15 )
+      }
+    }
+
+    // --- Page margins from editor padding ---
+    // Read the editor's actual padding to set proportional Word page margins
+    const editorCs = editorEl ? getComputedStyle(editorEl) : null
+    if (editorCs) {
+      const padTop = parseFloat(editorCs.paddingTop) || 0
+      const padBottom = parseFloat(editorCs.paddingBottom) || 0
+      const padLeft = parseFloat(editorCs.paddingLeft) || 0
+      const padRight = parseFloat(editorCs.paddingRight) || 0
+      // Convert px to twips for Word page margins
+      pageMargins = {
+        top: pxToTwip(padTop),
+        bottom: pxToTwip(padBottom),
+        left: pxToTwip(padLeft),
+        right: pxToTwip(padRight),
+      }
+    }
+
+    // Calculate available table width in twips (Letter page = 12240tw)
+    const pageWidthTwips = 12240
+    const marginLeft = pageMargins ? pageMargins.left : 1440
+    const marginRight = pageMargins ? pageMargins.right : 1440
+    _tableAvailWidthTwips = pageWidthTwips - marginLeft - marginRight
+
+    // Style auto-detection complete
+  } catch (e) {
+    // Could not read editor styles — using defaults
+  }
+
+  // Remove probe elements so they don't get exported as content
+  for (const el of probeElements) {
+    el.remove()
+  }
+
+  let blocks, children
+  try {
+    blocks = parseBlockElements(container)
+    children = await blocksToDocxChildren(blocks)
+  } finally {
+    document.body.removeChild(container)
+  }
 
   const doc = new Document({
+    styles: {
+      default: {
+        document: {
+          run: {
+            font: defaultFont,
+            size: defaultSize,
+          },
+          paragraph: {
+            // Exact twips from CSS line-height — matches editor rendering
+            spacing: { after: defaultParaAfter, line: defaultLineSpacing },
+          },
+        },
+        heading1: {
+          run: { font: defaultFont, size: defaultHeadingSizes.h1, bold: true, color: "1a1a1a" },
+          paragraph: { spacing: { before: 240, after: 120 } },
+        },
+        heading2: {
+          run: { font: defaultFont, size: defaultHeadingSizes.h2, bold: true, color: "1a1a1a" },
+          paragraph: { spacing: { before: 200, after: 100 } },
+        },
+        heading3: {
+          run: { font: defaultFont, size: defaultHeadingSizes.h3, bold: true, color: "1a1a1a" },
+          paragraph: { spacing: { before: 160, after: 80 } },
+        },
+        heading4: {
+          run: { font: defaultFont, size: defaultHeadingSizes.h4, bold: true, color: "333333" },
+          paragraph: { spacing: { before: 120, after: 60 } },
+        },
+        hyperlink: {
+          run: { color: "1a56db", underline: {} },
+        },
+      },
+    },
     numbering: {
       config: [
         {
@@ -542,7 +1341,7 @@ export async function convertHtmlToDocx(html) {
             format: LevelFormat.BULLET,
             text: i % 3 === 0 ? "\u2022" : i % 3 === 1 ? "\u25E6" : "\u2013",
             alignment: AlignmentType.LEFT,
-            style: { paragraph: { indent: { left: 720 * (i + 1), hanging: 360 } } },
+            style: { paragraph: { indent: { left: listIndentPerLevel * (i + 1), hanging: listHanging } } },
           })),
         },
         {
@@ -552,7 +1351,7 @@ export async function convertHtmlToDocx(html) {
             format: LevelFormat.DECIMAL,
             text: `%${i + 1}.`,
             alignment: AlignmentType.LEFT,
-            style: { paragraph: { indent: { left: 720 * (i + 1), hanging: 360 } } },
+            style: { paragraph: { indent: { left: listIndentPerLevel * (i + 1), hanging: listHanging } } },
           })),
         },
       ],
@@ -560,6 +1359,11 @@ export async function convertHtmlToDocx(html) {
     sections: [
       {
         children,
+        properties: pageMargins ? {
+          page: {
+            margin: pageMargins,
+          },
+        } : undefined,
       },
     ],
   })

@@ -115,7 +115,7 @@ export function useLinkHandler(props) {
 
       onSetLink?.()
     } catch (error) {
-      console.error("Failed to set link:", error)
+      if (import.meta.env.DEV) console.error("Failed to set link:", error)
     }
   }, [editor, onSetLink, url])
 
@@ -131,7 +131,7 @@ export function useLinkHandler(props) {
         .run()
       setUrl("")
     } catch (error) {
-      console.error("Failed to remove link:", error)
+      if (import.meta.env.DEV) console.error("Failed to remove link:", error)
     }
   }, [editor])
 

@@ -99,7 +99,7 @@ const LinkMain = ({
             <Button
               type="button"
               onClick={setLink}
-              title={t("link.apply")}
+              tooltip={t("link.apply")}
               disabled={!url && !isActive}
               variant="ghost">
               <CornerDownLeftIcon className="tiptap-button-icon" />
@@ -112,7 +112,7 @@ const LinkMain = ({
             <Button
               type="button"
               onClick={openLink}
-              title={t("link.openNew")}
+              tooltip={t("link.openNew")}
               disabled={!url && !isActive}
               variant="ghost">
               <ExternalLinkIcon className="tiptap-button-icon" />
@@ -121,7 +121,7 @@ const LinkMain = ({
             <Button
               type="button"
               onClick={removeLink}
-              title={t("link.remove")}
+              tooltip={t("link.remove")}
               disabled={!url && !isActive}
               variant="ghost">
               <TrashIcon className="tiptap-button-icon" />

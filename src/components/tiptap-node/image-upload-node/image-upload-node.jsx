@@ -363,7 +363,7 @@ export const ImageUploadNode = (props) => {
         }
       }
     } catch (error) {
-      console.error("Image upload failed:", error)
+      if (import.meta.env.DEV) console.error("Image upload failed:", error)
       extension.options.onError?.(error instanceof Error ? error : new Error(i18next.t("errors.imageUploadFailed")))
     }
   }

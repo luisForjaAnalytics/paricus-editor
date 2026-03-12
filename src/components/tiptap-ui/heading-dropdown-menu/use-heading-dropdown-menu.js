@@ -68,24 +68,28 @@ export function useHeadingDropdownMenu(config) {
   const { t } = useTranslation()
   const { editor } = useTiptapEditor(providedEditor)
   const [isVisible, setIsVisible] = useState(true)
-
-  const activeLevel = getActiveHeadingLevel(editor, levels)
-  const isActive = isHeadingActive(editor)
-  const canToggleState = canToggle(editor)
+  const [activeLevel, setActiveLevel] = useState(undefined)
+  const [isActive, setIsActive] = useState(false)
+  const [canToggleState, setCanToggleState] = useState(false)
 
   useEffect(() => {
     if (!editor) return
 
-    const handleSelectionUpdate = () => {
+    const handleUpdate = () => {
       setIsVisible(shouldShowButton({ editor, hideWhenUnavailable, level: levels }))
+      setActiveLevel(getActiveHeadingLevel(editor, levels))
+      setIsActive(isHeadingActive(editor))
+      setCanToggleState(canToggle(editor))
     }
 
-    handleSelectionUpdate()
+    handleUpdate()
 
-    editor.on("selectionUpdate", handleSelectionUpdate)
+    editor.on("selectionUpdate", handleUpdate)
+    editor.on("transaction", handleUpdate)
 
     return () => {
-      editor.off("selectionUpdate", handleSelectionUpdate)
+      editor.off("selectionUpdate", handleUpdate)
+      editor.off("transaction", handleUpdate)
     };
   }, [editor, hideWhenUnavailable, levels])
 

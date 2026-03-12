@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next"
 import { Button } from "@/components/tiptap-ui-primitive/button"
 import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
 import { WordDownloadIcon } from "@/components/tiptap-icons/word-download-icon"
-import { convertHtmlToDocx, downloadDocx } from "@/lib/docx-exporter"
+// Lazy-loaded to avoid bundling docx upfront
+const loadDocxExporter = () => import("@/lib/docx-exporter")
 
 export const DocxExportButton = forwardRef(
   ({ editor: providedEditor, text, ...buttonProps }, ref) => {
@@ -16,11 +17,12 @@ export const DocxExportButton = forwardRef(
 
       setIsExporting(true)
       try {
+        const { convertHtmlToDocx, downloadDocx } = await loadDocxExporter()
         const html = editor.getHTML()
         const blob = await convertHtmlToDocx(html)
         downloadDocx(blob)
       } catch (error) {
-        console.error(t("errors.docxExportFailed"), error)
+        if (import.meta.env.DEV) console.error(t("errors.docxExportFailed"), error)
       } finally {
         setIsExporting(false)
       }

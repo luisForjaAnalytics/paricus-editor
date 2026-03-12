@@ -147,14 +147,14 @@
     /* Light mode */
     --tt-button-default-bg-color: var(--transparent);
     --tt-button-hover-bg-color: var(--tt-gray-light-200);
-    --tt-button-active-bg-color: var(--tt-gray-light-a-100);
+    --tt-button-active-bg-color: var(--tt-gray-light-200);
     --tt-button-active-bg-color-emphasized: var(
       --tt-brand-color-100
     ); //more important active state
     --tt-button-active-bg-color-subdued: var(
       --tt-gray-light-a-100
     ); //less important active state
-    --tt-button-active-hover-bg-color: var(--tt-gray-light-200);
+    --tt-button-active-hover-bg-color: var(--tt-gray-light-300);
     --tt-button-active-hover-bg-color-emphasized: var(
       --tt-brand-color-200
     ); //more important active state hover
@@ -206,14 +206,14 @@
       --tt-button-disabled-text-color: var(--tt-gray-dark-a-300);
     }
 
-    /************************************************** 
-        Ghost button icon color 
+    /**************************************************
+        Ghost button icon color
     **************************************************/
 
     /* Light mode */
     --tt-button-default-icon-color: var(--tt-gray-light-a-600);
     --tt-button-hover-icon-color: var(--tt-gray-light-a-900);
-    --tt-button-active-icon-color: var(--tt-color-green-dec-6); /* active button base color */
+    --tt-button-active-icon-color: var(--tt-gray-light-a-900); /* active button base color */
     --tt-button-active-icon-color-emphasized: var(--tt-brand-color-600);
     --tt-button-active-icon-color-subdued: var(--tt-gray-light-a-900);
     --tt-button-disabled-icon-color: var(--tt-gray-light-a-400);

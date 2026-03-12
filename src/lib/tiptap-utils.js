@@ -115,7 +115,7 @@ export function focusNextNode(editor) {
 
   const paragraphType = state.schema.nodes.paragraph
   if (!paragraphType) {
-    console.warn("No paragraph node type found in schema.")
+    // No paragraph node type in schema
     return false
   }
 
@@ -156,9 +156,7 @@ export function isExtensionAvailable(editor, extensionNames) {
     editor.extensionManager.extensions.some((ext) => ext.name === name))
 
   if (!found) {
-    console.warn(
-      `None of the extensions [${names.join(", ")}] were found in the editor schema. Ensure they are included in the editor configuration.`
-    )
+    // Extensions not found in editor schema
   }
 
   return found
@@ -174,12 +172,10 @@ export function findNodeAtPosition(editor, position) {
   try {
     const node = editor.state.doc.nodeAt(position)
     if (!node) {
-      console.warn(`No node found at position ${position}`)
       return null
     }
     return node
-  } catch (error) {
-    console.error(`Error getting node at position ${position}:`, error)
+  } catch {
     return null
   }
 }
@@ -211,8 +207,6 @@ export function findNodePosition(props) {
     let foundNode = null
 
     editor.state.doc.descendants((currentNode, pos) => {
-      // TODO: Needed?
-      // if (currentNode.type && currentNode.type.name === node!.type.name) {
       if (currentNode === node) {
         foundPos = pos
         foundNode = currentNode
@@ -335,17 +329,26 @@ export const handleImageUpload = async (file, onProgress, abortSignal) => {
       }
     }
 
+    const cleanup = () => {
+      if (onAbort) abortSignal?.removeEventListener("abort", onAbort)
+    }
+
     reader.onload = () => {
+      cleanup()
       onProgress?.({ progress: 100 })
       resolve(reader.result)
     }
 
-    reader.onerror = () => reject(new Error(i18next.t("errors.fileReadFailed")))
+    reader.onerror = () => {
+      cleanup()
+      reject(new Error(i18next.t("errors.fileReadFailed")))
+    }
 
-    abortSignal?.addEventListener("abort", () => {
+    const onAbort = () => {
       reader.abort()
       reject(new Error(i18next.t("errors.uploadCancelled")))
-    })
+    }
+    abortSignal?.addEventListener("abort", onAbort)
 
     reader.readAsDataURL(file)
   })

@@ -209,27 +209,47 @@ export function useColorHighlight(config) {
   const { editor } = useTiptapEditor(providedEditor)
   const isMobile = useIsBreakpoint()
   const [isVisible, setIsVisible] = useState(true)
-  const canColorHighlightState = canColorHighlight(editor, mode)
+  const [isActive, setIsActive] = useState(false)
+  const [canColorHighlightState, setCanColorHighlightState] = useState(false)
+  const [activeDetectedColor, setActiveDetectedColor] = useState(null)
   const actualColor = highlightColor
     ? getHighlightColorValue(highlightColor, useColorValue)
     : highlightColor
-  const isActive = isColorHighlightActive(editor, actualColor, mode)
 
   useEffect(() => {
     if (!editor) return
 
-    const handleSelectionUpdate = () => {
+    const handleUpdate = () => {
       setIsVisible(shouldShowButton({ editor, hideWhenUnavailable, mode }))
+      setIsActive(isColorHighlightActive(editor, actualColor, mode))
+      setCanColorHighlightState(canColorHighlight(editor, mode))
+
+      // Detect which specific color is active
+      if (mode === "mark" && editor.isActive("highlight")) {
+        const attrs = editor.getAttributes("highlight")
+        if (attrs?.color) {
+          const match = HIGHLIGHT_COLORS.find(
+            (c) => c.value === attrs.color || c.colorValue === attrs.color
+          )
+          setActiveDetectedColor(match?.colorValue || attrs.color)
+        } else {
+          setActiveDetectedColor(null)
+        }
+      } else {
+        setActiveDetectedColor(null)
+      }
     }
 
-    handleSelectionUpdate()
+    handleUpdate()
 
-    editor.on("selectionUpdate", handleSelectionUpdate)
+    editor.on("selectionUpdate", handleUpdate)
+    editor.on("transaction", handleUpdate)
 
     return () => {
-      editor.off("selectionUpdate", handleSelectionUpdate)
+      editor.off("selectionUpdate", handleUpdate)
+      editor.off("transaction", handleUpdate)
     };
-  }, [editor, hideWhenUnavailable, mode])
+  }, [editor, hideWhenUnavailable, mode, actualColor])
 
   const handleColorHighlight = useCallback(() => {
     if (!editor || !canColorHighlightState || !actualColor || !label)
@@ -290,6 +310,7 @@ export function useColorHighlight(config) {
   return {
     isVisible,
     isActive,
+    activeColorValue: activeDetectedColor,
     handleColorHighlight,
     handleRemoveHighlight,
     canColorHighlight: canColorHighlightState,

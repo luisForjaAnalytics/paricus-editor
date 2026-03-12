@@ -293,7 +293,7 @@ export async function convertDocxToHtml(file) {
     const extracted = await extractFormattingFromXml(arrayBuffer)
     formattedRuns = extracted.formattedRuns
   } catch (e) {
-    console.warn("Failed to extract formatting from XML, continuing without formatting:", e)
+    // XML formatting extraction failed — continue without formatting
   }
 
   const result = await mammoth.convertToHtml(

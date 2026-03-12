@@ -20,6 +20,7 @@ import {
   DropdownMenuItem,
 } from "@/components/tiptap-ui-primitive/dropdown-menu"
 import { Card, CardBody } from "@/components/tiptap-ui-primitive/card"
+import { GREEN_ITEM_STYLE } from "@/lib/editor-config"
 
 export function ListDropdownMenu({
   editor: providedEditor,
@@ -77,7 +78,8 @@ export function ListDropdownMenu({
                     editor={editor}
                     type={option.type}
                     text={option.label}
-                    showTooltip={false} />
+                    showTooltip={false}
+                    style={GREEN_ITEM_STYLE} />
                 </DropdownMenuItem>
               ))}
             </ButtonGroup>

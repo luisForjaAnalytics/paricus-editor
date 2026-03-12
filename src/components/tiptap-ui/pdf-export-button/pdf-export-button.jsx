@@ -17,12 +17,21 @@ function resolveVars(html, rootEl) {
   }
 }
 
+// Patterns that indicate dark-theme or layout rules we don't want in print
+const SKIP_RULE_PATTERNS = /color-scheme\s*:\s*dark|prefers-color-scheme\s*:\s*dark|\.dark\s|:root\s*\{[^}]*--tt-(gray-dark|bg-color|text-color)/i
+const SKIP_SELECTOR_PATTERNS = /^(html|:root|\*|body)\s*\{/
+
 function collectStyles() {
   const styles = []
   for (const sheet of document.styleSheets) {
     try {
       for (const rule of sheet.cssRules) {
-        styles.push(rule.cssText)
+        const text = rule.cssText
+        // Skip dark theme rules and root-level color overrides
+        if (SKIP_RULE_PATTERNS.test(text)) continue
+        // Skip html/body/root rules that set backgrounds or colors
+        if (SKIP_SELECTOR_PATTERNS.test(text) && /background|color/i.test(text)) continue
+        styles.push(text)
       }
     } catch {
       // Cross-origin stylesheets can't be read — skip
@@ -39,11 +48,12 @@ export const PdfExportButton = forwardRef(
     const handleExport = () => {
       if (!editor) return
 
+      let iframe = null
       try {
         const html = resolveVars(editor.getHTML(), editor.view.dom)
         const cssText = collectStyles()
 
-        const iframe = document.createElement("iframe")
+        iframe = document.createElement("iframe")
         iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;"
         document.body.appendChild(iframe)
 
@@ -55,26 +65,42 @@ export const PdfExportButton = forwardRef(
 <head>
 <meta charset="utf-8">
 <style>
-  @page { size: A4; margin: 15mm; }
-  @media print {
-    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  }
+  @page { size: A4; margin: 10mm; }
   ${cssText}
-  body {
-    margin: 0;
-    padding: 20px 40px;
-    background: white;
-    color: #000;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* Print overrides — must come after editor styles with max specificity */
+  html, body, :root {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    background-color: #fff !important;
+    color: #000 !important;
+    color-scheme: light !important;
   }
-  .print-content {
-    max-width: 100%;
+  body {
+    padding: 10px 15px !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  @media print {
+    html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #fff !important; color: #000 !important; }
+  }
+  .ProseMirror, .print-content, .simple-editor, .tiptap {
+    max-width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
     line-height: 1.6;
+    background: transparent !important;
+    color: #000 !important;
   }
   a { color: #1a56db; }
-  table { border-collapse: collapse; table-layout: fixed; width: 100%; margin: 1em 0; }
-  table td, table th { border: 1px solid #d1d5db !important; padding: 0.5em 0.75em; vertical-align: top; }
-  table th { font-weight: bold; text-align: left; background-color: #f3f4f6 !important; }
+  table { border-collapse: collapse; margin: 1em 0; width: 100%; max-width: 100%; table-layout: auto; }
+  table table { margin: 0.3em 0; }
+  table td, table th { border: 1px solid #d1d5db !important; padding: 0.3em 0.4em; vertical-align: top; }
+  table ul, table ol { padding-left: 1.2em; margin: 0; }
+  .print-content img { max-width: 100%; height: auto; }
+  table th:not([style*="background-color"]) { font-weight: bold; text-align: left; background-color: #f3f4f6 !important; }
+  table th[style*="background-color"] { font-weight: bold; text-align: left; }
 </style>
 </head>
 <body>
@@ -86,20 +112,24 @@ export const PdfExportButton = forwardRef(
         // Wait for content to render, then print
         const win = iframe.contentWindow
         if (!win) throw new Error("Cannot access iframe window")
+
+        const cleanup = () => {
+          try { iframe.parentNode?.removeChild(iframe) } catch { /* already removed */ }
+        }
+
         win.focus()
         setTimeout(() => {
-          win.print()
-
-          // Clean up after dialog closes
-          const cleanup = () => {
-            try { document.body.removeChild(iframe) } catch { /* already removed */ }
-          }
           win.addEventListener("afterprint", cleanup)
-          // Fallback cleanup after 60s
-          setTimeout(cleanup, 60000)
+          win.print()
+          // Fallback: remove iframe after 5s regardless (covers cancelled dialogs)
+          setTimeout(cleanup, 5000)
         }, 250)
       } catch (error) {
-        console.error(t("errors.pdfExportFailed"), error)
+        // Ensure iframe is removed even on error
+        if (iframe) {
+          try { iframe.parentNode?.removeChild(iframe) } catch { /* already removed */ }
+        }
+        if (import.meta.env.DEV) console.error(t("errors.pdfExportFailed"), error)
       }
     }
 

@@ -6,13 +6,14 @@ import { EditorContent, EditorContext, useEditor } from "@tiptap/react";
 
 // --- Tiptap Core Extensions ---
 import { StarterKit } from "@tiptap/starter-kit";
-import { Image } from "@tiptap/extension-image";
+import { CustomImage } from "@/extensions/custom-image";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { TextAlign } from "@tiptap/extension-text-align";
 import { Typography } from "@tiptap/extension-typography";
 import { Highlight } from "@tiptap/extension-highlight";
 import { Subscript } from "@tiptap/extension-subscript";
 import { Superscript } from "@tiptap/extension-superscript";
+import { Underline } from "@tiptap/extension-underline";
 import { Color } from "@tiptap/extension-color";
 import { TextStyle } from "@tiptap/extension-text-style";
 import { FontFamily } from "@tiptap/extension-font-family";
@@ -22,8 +23,9 @@ import { LineHeight } from "@/extensions/line-height";
 import { Indent } from "@/extensions/indent";
 import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
-import { TableCell } from "@tiptap/extension-table-cell";
-import { TableHeader } from "@tiptap/extension-table-header";
+import { CustomTableCell, CustomTableHeader } from "@/extensions/custom-table-cell";
+import { TableLayout } from "@/extensions/table-layout";
+import { RowResize } from "@/extensions/row-resize";
 import { PageBreak } from "@/extensions/page-break";
 import { Bookmark } from "@/extensions/bookmark";
 import { TableOfContents } from "@/extensions/table-of-contents";
@@ -74,15 +76,18 @@ import { UndoRedoButton } from "@/components/tiptap-ui/undo-redo-button";
 import { PdfExportButton } from "@/components/tiptap-ui/pdf-export-button";
 import { DocxImportButton } from "@/components/tiptap-ui/docx-import-button";
 import { DocxExportButton } from "@/components/tiptap-ui/docx-export-button";
-import { TableDropdownMenu } from "@/components/tiptap-ui/table-dropdown-menu";
+import { HtmlImportButton } from "@/components/tiptap-ui/html-import-button";
+import { TableDropdownMenu, TableEditMenu } from "@/components/tiptap-ui/table-dropdown-menu";
 import { RemoveFormattingButton } from "@/components/tiptap-ui/remove-formatting-button";
 import { PageBreakButton } from "@/components/tiptap-ui/page-break-button";
 import { BookmarkButton } from "@/components/tiptap-ui/bookmark-button";
 import { TocButton } from "@/components/tiptap-ui/toc-button";
 import { SpecialCharsButton } from "@/components/tiptap-ui/special-chars-button";
+import { FontFamilyDropdown } from "@/components/tiptap-ui/font-family-dropdown";
 import { FontSizeDropdown } from "@/components/tiptap-ui/font-size-dropdown";
 import { LineHeightDropdown } from "@/components/tiptap-ui/line-height-dropdown";
 import { LanguageSwitcher } from "@/components/tiptap-ui/language-switcher";
+import { ToolbarPanel } from "@/components/tiptap-ui/toolbar-panel/toolbar-panel";
 
 // --- Icons ---
 import { ArrowLeftIcon } from "@/components/tiptap-icons/arrow-left-icon";
@@ -101,8 +106,36 @@ import { handleImageUpload, MAX_FILE_SIZE } from "@/lib/tiptap-utils";
 import "@/components/tiptap-templates/simple/simple-editor.scss";
 
 
-const MainToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile }) => {
+// SVG icons for compact toolbar menu triggers
+const TextIcon = ({ className }) => (
+  <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 7V4h16v3" /><path d="M9 20h6" /><path d="M12 4v16" />
+  </svg>
+);
+const ParagraphIcon = ({ className }) => (
+  <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M13 4v16" /><path d="M17 4v16" /><path d="M13 4H9a4 4 0 0 0 0 8h4" />
+  </svg>
+);
+const InsertIcon = ({ className }) => (
+  <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M12 8v8" /><path d="M8 12h8" />
+  </svg>
+);
+const ImportExportIcon = ({ className }) => (
+  <svg className={className} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 3v18" /><path d="m8 6-4 4 4 4" /><path d="m16 10 4 4-4 4" />
+  </svg>
+);
+
+const CompactToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile }) => {
   const { t } = useTranslation();
+  const [activePanel, setActivePanel] = useState(null);
+
+  const handlePanelChange = (id) => (open) => {
+    setActivePanel(open ? id : null);
+  };
+
   return (
     <>
       <Spacer />
@@ -112,7 +145,140 @@ const MainToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile }) => {
       </ToolbarGroup>
       <ToolbarSeparator />
       <ToolbarGroup>
-        <HeadingDropdownMenu levels={[1, 2, 3, 4]} portal={isMobile} />
+        {/* Menu 1: Text */}
+        <ToolbarPanel
+          icon={<TextIcon className="tiptap-button-icon" />}
+          label={t("toolbar.menuText")}
+          open={activePanel === "text"}
+          onOpenChange={handlePanelChange("text")}
+        >
+          <div className="toolbar-panel-row">
+            <FontFamilyDropdown portal />
+            <FontSizeDropdown portal />
+            <LineHeightDropdown portal />
+          </div>
+          <div className="toolbar-panel-separator" />
+          <div className="toolbar-panel-row">
+            <MarkButton type="bold" />
+            <MarkButton type="italic" />
+            <MarkButton type="strike" />
+            <MarkButton type="underline" />
+            <MarkButton type="code" />
+            <MarkButton type="superscript" />
+            <MarkButton type="subscript" />
+          </div>
+          <div className="toolbar-panel-separator" />
+          <div className="toolbar-panel-row">
+            {!isMobile ? (
+              <ColorHighlightPopover />
+            ) : (
+              <ColorHighlightPopoverButton onClick={onHighlighterClick} />
+            )}
+            <RemoveFormattingButton />
+          </div>
+        </ToolbarPanel>
+
+        {/* Menu 2: Paragraph */}
+        <ToolbarPanel
+          icon={<ParagraphIcon className="tiptap-button-icon" />}
+          label={t("toolbar.menuParagraph")}
+          open={activePanel === "paragraph"}
+          onOpenChange={handlePanelChange("paragraph")}
+        >
+          <div className="toolbar-panel-row">
+            <HeadingDropdownMenu levels={[1, 2, 3, 4]} portal />
+            <ListDropdownMenu
+              types={["bulletList", "orderedList", "taskList"]}
+              portal
+            />
+            <IndentButton direction="indent" />
+            <IndentButton direction="outdent" />
+          </div>
+          <div className="toolbar-panel-separator" />
+          <div className="toolbar-panel-row">
+            <TextAlignButton align="left" />
+            <TextAlignButton align="center" />
+            <TextAlignButton align="right" />
+            <TextAlignButton align="justify" />
+          </div>
+          <div className="toolbar-panel-separator" />
+          <div className="toolbar-panel-row">
+            <BlockquoteButton />
+            <CodeBlockButton />
+          </div>
+        </ToolbarPanel>
+
+        {/* Menu 3: Insert */}
+        <ToolbarPanel
+          icon={<InsertIcon className="tiptap-button-icon" />}
+          label={t("toolbar.menuInsert")}
+          open={activePanel === "insert"}
+          onOpenChange={handlePanelChange("insert")}
+        >
+          <div className="toolbar-panel-row">
+            <ImageUploadButton />
+            <TableDropdownMenu portal />
+            <TableEditMenu portal />
+            {!isMobile ? <LinkPopover /> : <LinkButton onClick={onLinkClick} />}
+          </div>
+          <div className="toolbar-panel-separator" />
+          <div className="toolbar-panel-row">
+            <PageBreakButton />
+            <BookmarkButton portal />
+            <TocButton />
+            <SpecialCharsButton portal />
+          </div>
+        </ToolbarPanel>
+
+        {/* Menu 4: Import/Export */}
+        <ToolbarPanel
+          icon={<ImportExportIcon className="tiptap-button-icon" />}
+          label={t("toolbar.menuImportExport")}
+          open={activePanel === "importexport"}
+          onOpenChange={handlePanelChange("importexport")}
+        >
+          <div className="toolbar-panel-row">
+            <DocxImportButton />
+            <HtmlImportButton />
+            <DocxExportButton />
+            <PdfExportButton />
+          </div>
+        </ToolbarPanel>
+
+        <ToolbarSeparator />
+
+        {/* Menu 5: Language (direct, no panel) */}
+        <LanguageSwitcher />
+      </ToolbarGroup>
+      <Spacer />
+    </>
+  );
+};
+
+const MainToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile }) => {
+  const { t } = useTranslation();
+  const isCompact = useIsBreakpoint("max", 1024);
+
+  if (isCompact) {
+    return (
+      <CompactToolbarContent
+        onHighlighterClick={onHighlighterClick}
+        onLinkClick={onLinkClick}
+        isMobile={isMobile}
+      />
+    );
+  }
+
+  return (
+    <>
+      <Spacer />
+      <ToolbarGroup>
+        <UndoRedoButton action="undo" />
+        <UndoRedoButton action="redo" />
+      </ToolbarGroup>
+      <ToolbarSeparator />
+      <ToolbarGroup>
+        <FontFamilyDropdown portal={isMobile} />
         <FontSizeDropdown portal={isMobile} />
         <LineHeightDropdown portal={isMobile} />
         <ListDropdownMenu
@@ -122,6 +288,7 @@ const MainToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile }) => {
         <IndentButton direction="indent" />
         <IndentButton direction="outdent" />
         <TableDropdownMenu portal={isMobile} />
+        <TableEditMenu portal={isMobile} />
         <BlockquoteButton />
         <CodeBlockButton />
       </ToolbarGroup>
@@ -154,15 +321,17 @@ const MainToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile }) => {
       </ToolbarGroup>
       <ToolbarSeparator />
       <ToolbarGroup>
-        <ImageUploadButton text={t("toolbar.addImage")} />
+        <ImageUploadButton />
         <PageBreakButton />
         <BookmarkButton portal={isMobile} />
+        <HeadingDropdownMenu levels={[1, 2, 3, 4]} portal={isMobile} />
         <TocButton />
         <SpecialCharsButton portal={isMobile} />
       </ToolbarGroup>
       <ToolbarSeparator />
       <ToolbarGroup>
         <DocxImportButton />
+        <HtmlImportButton />
         <DocxExportButton />
         <PdfExportButton />
         <ToolbarSeparator />
@@ -232,10 +401,11 @@ export function SimpleEditor() {
       TaskList,
       TaskItem.configure({ nested: true }),
       Highlight.configure({ multicolor: true }),
-      Image,
+      CustomImage,
       Typography,
       Superscript,
       Subscript,
+      Underline,
       TextStyle,
       Color,
       FontFamily,
@@ -244,8 +414,10 @@ export function SimpleEditor() {
       Indent,
       Table.configure({ resizable: true }),
       TableRow,
-      TableCell,
-      TableHeader,
+      CustomTableCell,
+      CustomTableHeader,
+      TableLayout,
+      RowResize,
       PageBreak,
       Bookmark,
       TableOfContents,
@@ -255,15 +427,15 @@ export function SimpleEditor() {
         maxSize: MAX_FILE_SIZE,
         limit: 3,
         upload: handleImageUpload,
-        onError: (error) => console.error(error),
+        onError: (error) => { if (import.meta.env.DEV) console.error(error) },
       }),
     ],
     content: "<p></p>",
   });
 
   useEffect(() => {
-    if (editor) window.__editor = editor;
-    return () => { window.__editor = null; };
+    if (import.meta.env.DEV && editor) window.__editor = editor;
+    return () => { if (import.meta.env.DEV) window.__editor = null; };
   }, [editor]);
 
   const rect = useCursorVisibility({

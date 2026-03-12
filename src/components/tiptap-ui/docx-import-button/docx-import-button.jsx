@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next"
 import { Button } from "@/components/tiptap-ui-primitive/button"
 import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
 import { FileUploadIcon } from "@/components/tiptap-icons/file-upload-icon"
-import { convertDocxToHtml } from "@/lib/docx-converter"
+// Lazy-loaded to avoid bundling mammoth upfront
+const loadDocxConverter = () => import("@/lib/docx-converter")
 import { sanitizeHtml } from "@/lib/sanitize-html"
 
 export const DocxImportButton = forwardRef(
@@ -18,18 +19,25 @@ export const DocxImportButton = forwardRef(
         const file = event.target.files?.[0]
         if (!file || !editor) return
 
+        const MAX_DOCX_SIZE = 50 * 1024 * 1024 // 50MB
+        if (file.size > MAX_DOCX_SIZE) {
+          if (import.meta.env.DEV) console.error(t("errors.fileTooLarge"))
+          return
+        }
+
         setIsImporting(true)
 
         try {
+          const { convertDocxToHtml } = await loadDocxConverter()
           const { html, warnings } = await convertDocxToHtml(file)
 
           if (warnings.length > 0) {
-            console.warn("Word import warnings:", warnings)
+            if (import.meta.env.DEV) console.warn("Word import warnings:", warnings)
           }
 
           editor.commands.setContent(sanitizeHtml(html))
         } catch (error) {
-          console.error(t("errors.docxImportFailed"), error)
+          if (import.meta.env.DEV) console.error(t("errors.docxImportFailed"), error)
         } finally {
           setIsImporting(false)
           if (fileInputRef.current) {

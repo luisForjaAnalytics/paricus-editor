@@ -144,22 +144,26 @@ export function useMark(config) {
   const { t } = useTranslation()
   const { editor } = useTiptapEditor(providedEditor)
   const [isVisible, setIsVisible] = useState(true)
-  const canToggle = canToggleMark(editor, type)
-  const isActive = isMarkActive(editor, type)
+  const [isActive, setIsActive] = useState(false)
+  const [canToggle, setCanToggle] = useState(false)
 
   useEffect(() => {
     if (!editor) return
 
-    const handleSelectionUpdate = () => {
+    const handleUpdate = () => {
       setIsVisible(shouldShowButton({ editor, type, hideWhenUnavailable }))
+      setIsActive(isMarkActive(editor, type))
+      setCanToggle(canToggleMark(editor, type))
     }
 
-    handleSelectionUpdate()
+    handleUpdate()
 
-    editor.on("selectionUpdate", handleSelectionUpdate)
+    editor.on("selectionUpdate", handleUpdate)
+    editor.on("transaction", handleUpdate)
 
     return () => {
-      editor.off("selectionUpdate", handleSelectionUpdate)
+      editor.off("selectionUpdate", handleUpdate)
+      editor.off("transaction", handleUpdate)
     };
   }, [editor, type, hideWhenUnavailable])
 
