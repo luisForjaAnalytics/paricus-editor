@@ -1,6 +1,7 @@
 {
   "editor": {
-    "ariaLabel": "Área de contenido principal, comienza a escribir para ingresar texto."
+    "ariaLabel": "Área de contenido principal, comienza a escribir para ingresar texto.",
+    "mobileNotAvailable": "Este editor no está disponible en pantallas pequeñas. Por favor, utilice un dispositivo con una pantalla más grande."
   },
   "toolbar": {
     "undo": "Deshacer",

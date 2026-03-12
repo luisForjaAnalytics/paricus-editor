@@ -1,6 +1,7 @@
 {
   "editor": {
-    "ariaLabel": "Main content area, start typing to enter text."
+    "ariaLabel": "Main content area, start typing to enter text.",
+    "mobileNotAvailable": "This editor is not available on small screens. Please use a device with a larger display."
   },
   "toolbar": {
     "undo": "Undo",

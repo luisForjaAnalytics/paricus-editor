@@ -93,6 +93,18 @@ body,
   padding: 2rem 3rem;
 }
 
+.simple-editor-unavailable {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+  color: var(--tt-gray-light-500, #6b7280);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
 @media screen and (max-width: 480px) {
   .simple-editor-canvas {
     padding: 0.5rem;

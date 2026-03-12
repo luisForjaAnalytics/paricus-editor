@@ -5,7 +5,7 @@ import "./editor.scss"
 function App() {
   return (
     <ErrorBoundary>
-      <SimpleEditor />
+      <SimpleEditor responsive={true} />
     </ErrorBoundary>
   )
 }

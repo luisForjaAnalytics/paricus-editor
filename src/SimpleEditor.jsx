@@ -255,11 +255,12 @@ const CompactToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile }) =>
   );
 };
 
-const MainToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile }) => {
+const MainToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile, responsive = true }) => {
   const { t } = useTranslation();
   const isCompact = useIsBreakpoint("max", 1024);
 
   if (isCompact) {
+    if (!responsive) return null;
     return (
       <CompactToolbarContent
         onHighlighterClick={onHighlighterClick}
@@ -365,9 +366,10 @@ const MobileToolbarContent = ({ type, onBack }) => (
   </>
 );
 
-export function SimpleEditor() {
+export function SimpleEditor({ responsive = true } = {}) {
   const { t } = useTranslation();
   const isMobile = useIsBreakpoint();
+  const isCompact = useIsBreakpoint("max", 1024);
   const { height } = useWindowSize();
   const [mobileView, setMobileView] = useState("main");
   const toolbarRef = useRef(null);
@@ -379,6 +381,7 @@ export function SimpleEditor() {
 
   const editor = useEditor({
     immediatelyRender: false,
+    autofocus: true,
     editorProps: {
       attributes: {
         autocomplete: "off",
@@ -391,6 +394,7 @@ export function SimpleEditor() {
     extensions: [
       StarterKit.configure({
         horizontalRule: false,
+        underline: false,
         link: {
           openOnClick: false,
           enableClickSelection: true,
@@ -449,6 +453,16 @@ export function SimpleEditor() {
     }
   }, [isMobile, mobileView]);
 
+  if (!responsive && isCompact) {
+    return (
+      <div className="simple-editor-wrapper">
+        <div className="simple-editor-unavailable">
+          <p>{t("editor.mobileNotAvailable")}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="simple-editor-wrapper">
       <EditorContext.Provider value={{ editor }}>
@@ -467,6 +481,7 @@ export function SimpleEditor() {
               onHighlighterClick={() => setMobileView("highlighter")}
               onLinkClick={() => setMobileView("link")}
               isMobile={isMobile}
+              responsive={responsive}
             />
           ) : (
             <MobileToolbarContent
