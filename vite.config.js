@@ -90,6 +90,7 @@ function imageProxyPlugin() {
 }
 
 export default defineConfig({
+  base: '/paricus-editor/',
   plugins: [
     react({
       babel: {
