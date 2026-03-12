@@ -18,6 +18,14 @@
       > * {
         margin-bottom: 0;
       }
+
+      // When a row has been resized (--row-h is set), constrain children so the
+      // cell actually shrinks. overflow/height on td itself is ignored by browsers,
+      // but max-height + overflow on block children (p, ul, etc.) works.
+      &[style*="--row-h"] > * {
+        max-height: calc(var(--row-h) - 1em - 2px); // subtract padding (0.5em×2) + border (1px×2)
+        overflow: hidden;
+      }
     }
 
     th {

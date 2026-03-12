@@ -5,6 +5,9 @@ import { cellAround, TableMap } from "@tiptap/pm/tables"
 
 const rowResizePluginKey = new PluginKey("rowResize")
 const HANDLE_WIDTH = 8
+// Minimum row height — 1rem (≈16px). overflow:hidden on resized cells makes
+// height exact (not just a minimum), mirroring how table-layout:fixed clips columns.
+const CELL_MIN_HEIGHT = 16
 
 // --- State class (mirrors ResizeState from columnResizing) ---
 class RowResizeState {
@@ -206,14 +209,17 @@ function updateHandle(view, value) {
 
 function draggedHeight(dragging, event) {
   const offset = event.clientY - dragging.startY
-  return Math.max(24, dragging.startHeight + offset)
+  return Math.max(CELL_MIN_HEIGHT, dragging.startHeight + offset)
 }
 
 // Visual update during drag (DOM only, no ProseMirror transaction)
+// We constrain children (not the td itself) because overflow is ignored on table-cell.
 function displayRowHeight(view, cellPos, height) {
   const cells = getRowCells(view, cellPos)
   for (const cell of cells) {
     cell.style.height = height + "px"
+    // CSS custom property used by SCSS rule to constrain child elements
+    cell.style.setProperty("--row-h", height + "px")
   }
 }
 
@@ -223,7 +229,7 @@ function updateRowHeight(view, cellPos, height) {
   if (!positions.length) return
 
   const tr = view.state.tr
-  const roundedHeight = Math.round(height)
+  const roundedHeight = Math.max(CELL_MIN_HEIGHT, Math.round(height))
 
   for (const pos of positions) {
     const node = view.state.doc.nodeAt(pos)
@@ -257,6 +263,43 @@ function handleDecorations(state, cellPos) {
   return DecorationSet.create(state.doc, decorations)
 }
 
+// --- Render-time row-height enforcement (mirrors updateColumns for cellMinWidth) ---
+function enforceMinRowHeights(view) {
+  const tables = view.dom.querySelectorAll("table")
+  if (!tables.length) return
+  for (const table of tables) {
+    const rows = table.querySelectorAll("tr")
+    for (const tr of rows) {
+      const cells = tr.querySelectorAll(":scope > td, :scope > th")
+
+      // Clamp any inline height below the minimum and set CSS variable for children
+      for (const cell of cells) {
+        const h = cell.style.height
+        if (h) {
+          const px = parseInt(h, 10)
+          if (px > 0 && px < CELL_MIN_HEIGHT) {
+            cell.style.height = CELL_MIN_HEIGHT + "px"
+            cell.style.setProperty("--row-h", CELL_MIN_HEIGHT + "px")
+          }
+          // Ensure the CSS variable is in sync
+          if (px > 0 && !cell.style.getPropertyValue("--row-h")) {
+            cell.style.setProperty("--row-h", h)
+          }
+        }
+      }
+
+      // If the rendered row is still shorter than the minimum, force it
+      const trRect = tr.getBoundingClientRect()
+      if (trRect.height > 0 && trRect.height < CELL_MIN_HEIGHT) {
+        const firstCell = cells[0]
+        if (firstCell) {
+          firstCell.style.height = CELL_MIN_HEIGHT + "px"
+        }
+      }
+    }
+  }
+}
+
 // --- Plugin creation ---
 function createRowResizePlugin() {
   const plugin = new Plugin({
@@ -269,6 +312,16 @@ function createRowResizePlugin() {
       apply(tr, prev) {
         return prev.apply(tr)
       },
+    },
+
+    view() {
+      return {
+        update(view) {
+          // Enforce minimum row heights on every render, just like
+          // prosemirror-tables' TableView.updateColumns enforces cellMinWidth
+          enforceMinRowHeights(view)
+        },
+      }
     },
 
     props: {
@@ -314,12 +367,13 @@ export const RowResize = Extension.create({
           rowHeight: {
             default: null,
             parseHTML: (el) => {
-              const h = el.style.height || el.getAttribute("data-row-height")
+              const h = el.style.height
               return h ? parseInt(h, 10) || null : null
             },
             renderHTML: (attrs) => {
               if (!attrs.rowHeight) return {}
-              return { style: `height: ${attrs.rowHeight}px` }
+              const h = Math.max(CELL_MIN_HEIGHT, attrs.rowHeight)
+              return { style: `height: ${h}px; --row-h: ${h}px` }
             },
           },
         },

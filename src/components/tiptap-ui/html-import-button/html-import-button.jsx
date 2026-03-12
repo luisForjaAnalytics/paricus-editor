@@ -58,7 +58,7 @@ function inlineStyleBlocks(doc) {
         }
       }
     }
-  } catch (e) {
+  } catch {
     // Style inlining failed — content will still render, just without class-based styles
   } finally {
     document.body.removeChild(iframe)
@@ -163,7 +163,7 @@ async function embedExternalImages(editor) {
 
   if (imageNodes.length === 0) return
 
-  for (const { pos, attrs } of imageNodes) {
+  for (const { attrs } of imageNodes) {
     const dataUri = await tryConvertToDataUri(attrs.src)
     if (dataUri) {
       // Find the current position of this node (may have shifted)
@@ -245,7 +245,6 @@ function HtmlImportModal({ isOpen, onClose, onAccept }) {
     if (isOpen && textareaRef.current) {
       setTimeout(() => textareaRef.current?.focus(), 100);
     }
-    if (!isOpen) setHtml("");
   }, [isOpen]);
 
   const handleKeyDown = useCallback(
@@ -395,7 +394,7 @@ export const HtmlImportButton = forwardRef(
         </Button>
         <HtmlImportModal
           isOpen={isOpen}
-          onClose={() => setIsOpen(false)}
+          onClose={() => { setIsOpen(false) }}
           onAccept={handleAccept}
         />
       </>
