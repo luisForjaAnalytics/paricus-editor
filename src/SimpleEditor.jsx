@@ -21,7 +21,7 @@ import { Selection } from "@tiptap/extensions";
 import { FontSize } from "@/extensions/font-size";
 import { LineHeight } from "@/extensions/line-height";
 import { Indent } from "@/extensions/indent";
-import { Table } from "@tiptap/extension-table";
+import { CustomTable } from "@/extensions/custom-table";
 import { TableRow } from "@tiptap/extension-table-row";
 import { CustomTableCell, CustomTableHeader } from "@/extensions/custom-table-cell";
 import { TableLayout } from "@/extensions/table-layout";
@@ -416,7 +416,7 @@ export function SimpleEditor({ responsive = true } = {}) {
       FontSize,
       LineHeight,
       Indent,
-      Table.configure({ resizable: true }),
+      CustomTable.configure({ resizable: true }),
       TableRow,
       CustomTableCell,
       CustomTableHeader,
