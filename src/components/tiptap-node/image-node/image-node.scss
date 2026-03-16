@@ -1,25 +1,40 @@
+// ==========================================================================
+// Image Node Styles
+//
+// Styles for images rendered inside the TipTap/ProseMirror editor.
+// Includes:
+//   - Base image styles (responsive, block display)
+//   - Selection highlight (blue outline when selected)
+//   - Thread-embedded images
+//   - Resizable image wrapper with corner drag handles
+// ==========================================================================
+
 .tiptap.ProseMirror {
+  // Base image: fill container width, keep aspect ratio
   img {
     max-width: 100%;
     height: auto;
     display: block;
   }
 
+  // Images inside paragraphs are inline
   p > img {
     display: inline-block;
   }
 
+  // Block-level images (exclude emoji) get vertical spacing + transparent outline
   > img:not([data-type="emoji"] img) {
     margin: 2rem 0;
     outline: 0.125rem solid transparent;
     border-radius: var(--tt-radius-xs, 0.25rem);
   }
 
+  // Blue outline when ProseMirror marks the image as selected
   img:not([data-type="emoji"] img).ProseMirror-selectednode {
     outline-color: var(--tt-brand-color-500);
   }
 
-  // Thread image handling
+  // Thread (comment thread) embedded images
   .tiptap-thread:has(> img) {
     margin: 2rem 0;
 
@@ -31,5 +46,80 @@
 
   .tiptap-thread img {
     margin: 0;
+  }
+
+  // ========================================================================
+  // Resizable Image Wrapper
+  //
+  // This wraps every image rendered by the ResizableImage extension.
+  // - "selected" class: shows blue outline + corner handles
+  // - "resizing" class: changes cursor while actively dragging a handle
+  // - data-drag-handle on the wrapper enables TipTap drag-to-reposition
+  // ========================================================================
+  .resizable-image-wrapper {
+    display: inline-block;
+    position: relative;
+    line-height: 0;       // Remove extra space below inline-block images
+    margin: 1rem 0;
+    cursor: grab;         // Indicates the image is draggable
+
+    img {
+      border-radius: var(--tt-radius-xs, 0.25rem);
+      display: block;
+      max-width: 100%;
+    }
+
+    // Selected state: blue outline around the image
+    &.selected {
+      img {
+        outline: 2px solid var(--tt-brand-color-500, #3b82f6);
+      }
+    }
+
+    // While actively resizing, override cursor to resize arrow
+    &.resizing {
+      cursor: nwse-resize;
+    }
+
+    // ------------------------------------------------------------------
+    // Resize Handles
+    //
+    // Four circular handles positioned at each corner of the image.
+    // Each handle is 12×12px with a blue fill and white border.
+    // The cursor changes direction depending on which corner it is.
+    // ------------------------------------------------------------------
+    .resize-handle {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      background: var(--tt-brand-color-500, #3b82f6);
+      border: 2px solid #fff;
+      border-radius: 50%;
+      z-index: 10;
+
+      &.top-left {
+        top: -6px;
+        left: -6px;
+        cursor: nwse-resize;
+      }
+
+      &.top-right {
+        top: -6px;
+        right: -6px;
+        cursor: nesw-resize;
+      }
+
+      &.bottom-left {
+        bottom: -6px;
+        left: -6px;
+        cursor: nesw-resize;
+      }
+
+      &.bottom-right {
+        bottom: -6px;
+        right: -6px;
+        cursor: nwse-resize;
+      }
+    }
   }
 }
