@@ -9,7 +9,7 @@ export const Indent = Extension.create({
   addGlobalAttributes() {
     return [
       {
-        types: ["paragraph", "heading"],
+        types: ["paragraph", "heading", "bulletList", "orderedList"],
         attributes: {
           indent: {
             default: 0,

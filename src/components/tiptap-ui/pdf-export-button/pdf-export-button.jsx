@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next"
 import { Button } from "@/components/tiptap-ui-primitive/button"
 import { useTiptapEditor } from "@/hooks/use-tiptap-editor"
 import { PdfDownloadIcon } from "@/components/tiptap-icons/pdf-download-icon"
+import { stampTableWidths } from "@/lib/stamp-table-widths"
 
 function resolveVars(html, rootEl) {
   try {
@@ -108,6 +109,15 @@ export const PdfExportButton = forwardRef(
 </body>
 </html>`)
         doc.close()
+
+        // Stamp actual column widths from the editor DOM onto the iframe tables
+        // so that column resizes are reflected in the PDF
+        try {
+          const editorEl = document.querySelector(".tiptap.ProseMirror")
+          if (editorEl) {
+            stampTableWidths(editorEl, doc, { mode: "style" })
+          }
+        } catch { /* non-critical — columns will use auto layout */ }
 
         // Wait for content to render, then print
         const win = iframe.contentWindow

@@ -28,6 +28,7 @@ export const PdfImportButton = forwardRef(
           const { html } = await convertPdfToHtml(file, (current, total) => {
             setProgress(t("errors.pdfOcrProgress", { current, total }))
           })
+          editor.commands.clearContent()
           editor.commands.setContent(sanitizeHtml(html))
         } catch (error) {
           if (import.meta.env.DEV) console.error(t("errors.pdfImportFailed"), error)

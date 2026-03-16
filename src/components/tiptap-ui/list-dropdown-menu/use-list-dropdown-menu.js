@@ -134,32 +134,37 @@ export function useListDropdownMenu(config) {
     [types, t]
   )
 
-  const canToggleAny = canToggleAnyList(editor, types)
-  const isAnyActive = isAnyListActive(editor, types)
-  const activeType = getActiveListType(editor, types)
+  const [activeType, setActiveType] = useState(undefined)
+  const [canToggleAny, setCanToggleAny] = useState(false)
+
   const activeList = filteredLists.find((option) => option.type === activeType)
+  const isAnyActive = !!activeType
 
   useEffect(() => {
     if (!editor) return
 
-    const handleSelectionUpdate = () => {
+    const handleUpdate = () => {
+      setActiveType(getActiveListType(editor, types))
+      setCanToggleAny(canToggleAnyList(editor, types))
       setIsVisible(shouldShowListDropdown({
         editor,
         listTypes: types,
         hideWhenUnavailable,
         listInSchema,
-        canToggleAny,
+        canToggleAny: canToggleAnyList(editor, types),
       }))
     }
 
-    handleSelectionUpdate()
+    handleUpdate()
 
-    editor.on("selectionUpdate", handleSelectionUpdate)
+    editor.on("selectionUpdate", handleUpdate)
+    editor.on("transaction", handleUpdate)
 
     return () => {
-      editor.off("selectionUpdate", handleSelectionUpdate)
+      editor.off("selectionUpdate", handleUpdate)
+      editor.off("transaction", handleUpdate)
     };
-  }, [canToggleAny, editor, hideWhenUnavailable, listInSchema, types])
+  }, [editor, hideWhenUnavailable, listInSchema, types])
 
   return {
     isVisible,

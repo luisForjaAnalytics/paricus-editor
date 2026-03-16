@@ -139,15 +139,30 @@ export function toggleList(editor, type) {
       (state.selection.empty || state.selection instanceof TextSelection) &&
       isPossibleToTurnInto
     ) {
-      const pos = findNodePosition({
-        editor,
-        node: state.selection.$anchor.node(1),
-      })?.pos
-      if (!isValidPosition(pos)) return false
+      // When inside a table cell, skip NodeSelection conversion — using
+      // node(1) would select the entire table. Instead let toggleBulletList
+      // work directly on the text selection within the cell.
+      const $anchor = state.selection.$anchor
+      let insideTable = false
+      for (let d = $anchor.depth; d >= 0; d--) {
+        const n = $anchor.node(d)
+        if (n.type.name === "tableCell" || n.type.name === "tableHeader") {
+          insideTable = true
+          break
+        }
+      }
 
-      tr = tr.setSelection(NodeSelection.create(state.doc, pos))
-      view.dispatch(tr)
-      state = view.state
+      if (!insideTable) {
+        const pos = findNodePosition({
+          editor,
+          node: $anchor.node(1),
+        })?.pos
+        if (!isValidPosition(pos)) return false
+
+        tr = tr.setSelection(NodeSelection.create(state.doc, pos))
+        view.dispatch(tr)
+        state = view.state
+      }
     }
 
     const selection = state.selection

@@ -17,6 +17,7 @@ import {
   BookmarkEnd,
   VerticalAlign,
   LineRuleType,
+  TableLayoutType,
 } from "docx"
 import { saveAs } from "file-saver"
 import { getProxyUrl } from "@/lib/editor-config"
@@ -30,8 +31,10 @@ const HEADING_MAP = {
 
 const ALIGN_MAP = {
   left: AlignmentType.LEFT,
+  start: AlignmentType.LEFT,
   center: AlignmentType.CENTER,
   right: AlignmentType.RIGHT,
+  end: AlignmentType.RIGHT,
   justify: AlignmentType.JUSTIFIED,
 }
 
@@ -449,7 +452,7 @@ async function processImageRuns(runs) {
           })
         )
       } catch (err) {
-        // Image export failed — skip this run
+        if (import.meta.env.DEV) console.warn("[DOCX] Image run skipped:", err.message)
       }
     } else {
       processed.push(run)
@@ -628,6 +631,7 @@ function collectListItems(listNode, blocks, listType, level, inherited = {}) {
     const liLhPx = getExplicitLineHeightPx(liLhSource)
 
     if (isTask) {
+      const prefix = checked ? "☑ " : "☐ "
       const taskBlock = {
         type: "paragraph",
         runs: [new TextRun({ text: prefix }), ...textNodes],
@@ -657,6 +661,11 @@ function collectListItems(listNode, blocks, listType, level, inherited = {}) {
 
 // Available table width in twips (set by convertHtmlToDocx based on page size and margins)
 let _tableAvailWidthTwips = 9360 // default: Letter page 12240tw - 2*1440tw margins
+// Array of per-column ratio arrays, indexed by table order in the document.
+// Built from the live editor DOM in convertHtmlToDocx, consumed in blocksToDocxChildren.
+let _tableRatiosArray = []
+let _tableConvertIndex = 0
+let _tableNestingDepth = 0
 
 async function blocksToDocxChildren(blocks, inheritedColor) {
   const children = []
@@ -674,14 +683,18 @@ async function blocksToDocxChildren(blocks, inheritedColor) {
 
     if (block.type === "table") {
       try {
+        _tableNestingDepth++
+        const isNested = _tableNestingDepth > 1
         const tableEl = block.element
         const noBorders = tableHasNoBorders(tableEl)
         const tableRows = []
         // Only select direct child rows (not from nested tables)
         const rows = tableEl.querySelectorAll(":scope > thead > tr, :scope > tbody > tr, :scope > tfoot > tr, :scope > tr")
 
-        // Read column widths: prefer editor-stamped ratios, then data-colwidth, then rendered
-        // Use DXA (twips) for precise control — Letter page = 12240tw, minus margins
+        // Read column widths: prefer live editor DOM ratios (by table index),
+        // then data-colwidth, then rendered widths. Use DXA (twips) for precise control.
+        const colRatios = _tableRatiosArray[_tableConvertIndex] || null
+        _tableConvertIndex++
         const colWidthMap = []
         if (rows.length > 0) {
           // Find the row with the most individual cells (skip header rows with colspan)
@@ -692,58 +705,105 @@ async function blocksToDocxChildren(blocks, inheritedColor) {
           }
           const refCells = bestRow.querySelectorAll(":scope > th, :scope > td")
 
-          // 1) Check for editor-stamped ratios (from real editor DOM layout)
-          let hasEditorRatio = false
+          // Priority: 1) data-colwidth (exact resize values from ProseMirror)
+          //           2) live editor DOM offsetWidth ratios
+          //           3) rendered widths from off-screen container
           for (const c of refCells) {
-            const ratio = parseFloat(c.getAttribute("data-editor-ratio"))
             const cs = parseInt(c.getAttribute("colspan") || "1", 10)
-            if (ratio > 0) hasEditorRatio = true
-            colWidthMap.push({ ratio: ratio || 0, colspan: cs })
+            colWidthMap.push({ ratio: 0, colspan: cs })
           }
 
-          if (!hasEditorRatio) {
-            // 2) Try data-colwidth (TipTap's column width storage)
-            let totalWidth = 0
-            for (let i = 0; i < refCells.length; i++) {
-              const cw = refCells[i].getAttribute("data-colwidth")
-              const widths = cw ? cw.split(",").map(Number) : []
-              const cellTotal = widths.length > 0 ? widths.reduce((a, b) => a + b, 0) : 0
-              colWidthMap[i].px = cellTotal
-              totalWidth += cellTotal
+          // 1) Try data-colwidth (TipTap serializes colwidth from ProseMirror model)
+          let totalColwidth = 0
+          for (let i = 0; i < refCells.length; i++) {
+            const cw = refCells[i].getAttribute("data-colwidth")
+            const widths = cw ? cw.split(",").map(Number) : []
+            const cellTotal = widths.length > 0 ? widths.reduce((a, b) => a + b, 0) : 0
+            colWidthMap[i].px = cellTotal
+            totalColwidth += cellTotal
+          }
+
+          if (totalColwidth > 0) {
+            for (const entry of colWidthMap) {
+              entry.ratio = entry.px / totalColwidth
             }
-            if (totalWidth > 0) {
-              for (const entry of colWidthMap) {
-                entry.ratio = entry.px / totalWidth
+          } else if (colRatios && colRatios.length > 0) {
+            // 2) Use live editor DOM ratios
+            let colIdx = 0
+            for (let i = 0; i < refCells.length; i++) {
+              const cs = colWidthMap[i].colspan
+              let cellRatio = 0
+              for (let c = 0; c < cs && colIdx + c < colRatios.length; c++) {
+                cellRatio += colRatios[colIdx + c]
               }
-            } else {
-              // 3) Fallback: read rendered widths from the off-screen container
-              let totalRendered = 0
-              for (const c of refCells) totalRendered += c.offsetWidth
-              if (totalRendered > 0) {
-                for (let i = 0; i < colWidthMap.length; i++) {
-                  colWidthMap[i].ratio = refCells[i].offsetWidth / totalRendered
-                }
+              colWidthMap[i].ratio = cellRatio
+              colIdx += cs
+            }
+          } else {
+            // 3) Fallback: read rendered widths from the off-screen container
+            let totalRendered = 0
+            for (const c of refCells) totalRendered += c.offsetWidth
+            if (totalRendered > 0) {
+              for (let i = 0; i < colWidthMap.length; i++) {
+                colWidthMap[i].ratio = refCells[i].offsetWidth / totalRendered
               }
             }
           }
         }
 
+        // Build per-column ratios from colWidthMap for rowspan-aware width assignment
+        const perColRatio = []
+        for (const entry of colWidthMap) {
+          const cs = entry.colspan || 1
+          if (cs > 1) {
+            for (let i = 0; i < cs; i++) perColRatio.push(entry.ratio / cs)
+          } else {
+            perColRatio.push(entry.ratio)
+          }
+        }
+
+        // Track active rowspans per column so we can compute correct column position
+        const activeRowSpans = [] // activeRowSpans[col] = remaining rows to span
+
         for (const row of rows) {
           // Only direct child cells of this row
           const cells = row.querySelectorAll(":scope > th, :scope > td")
           const tableCells = []
-          let cellIdx = 0
+          let colPos = 0
           for (const cell of cells) {
             const colspan = parseInt(cell.getAttribute("colspan") || "1", 10)
             const rowspan = parseInt(cell.getAttribute("rowspan") || "1", 10)
 
-            // Cell width from column ratio — use DXA (twips) for precise sizing
-            let cellWidth
-            if (colWidthMap[cellIdx] && colWidthMap[cellIdx].ratio > 0) {
-              const twips = Math.round(colWidthMap[cellIdx].ratio * _tableAvailWidthTwips)
-              cellWidth = { size: twips, type: WidthType.DXA }
+            // Skip columns occupied by rowspans from previous rows
+            while (colPos < activeRowSpans.length && activeRowSpans[colPos] > 0) {
+              activeRowSpans[colPos]--
+              colPos++
             }
-            cellIdx++
+
+            // Cell width: sum ratios for all columns this cell spans
+            let cellWidth
+            if (perColRatio.length > 0) {
+              let cellRatio = 0
+              for (let c = 0; c < colspan && colPos + c < perColRatio.length; c++) {
+                cellRatio += perColRatio[colPos + c]
+              }
+              if (cellRatio > 0) {
+                if (isNested) {
+                  const pct = Math.round(cellRatio * 100)
+                  cellWidth = { size: pct, type: WidthType.PERCENTAGE }
+                } else {
+                  const twips = Math.round(cellRatio * _tableAvailWidthTwips)
+                  cellWidth = { size: twips, type: WidthType.DXA }
+                }
+              }
+            }
+
+            // Register rowspan for occupied columns
+            for (let c = 0; c < colspan; c++) {
+              while (activeRowSpans.length <= colPos + c) activeRowSpans.push(0)
+              activeRowSpans[colPos + c] = rowspan - 1
+            }
+            colPos += colspan
 
             // Read all computed styles once for this cell
             let computedCell
@@ -888,17 +948,25 @@ async function blocksToDocxChildren(blocks, inheritedColor) {
             } catch { /* fallback to default */ }
           }
 
+          const hasRatios = colWidthMap.length > 0 && colWidthMap.some(e => e.ratio > 0)
+          const useFixed = hasRatios && !isNested
+
           children.push(
             new Table({
               rows: tableRows,
-              width: { size: widthSize, type: widthType },
+              width: useFixed
+                ? { size: _tableAvailWidthTwips, type: WidthType.DXA }
+                : { size: widthSize, type: widthType },
+              layout: useFixed ? TableLayoutType.FIXED : undefined,
               alignment: tableAlignment,
               borders: tableBorders,
             })
           )
         }
       } catch (e) {
-        // Table export failed — skip this block
+        if (import.meta.env.DEV) console.error("[DOCX] Table export error:", e)
+      } finally {
+        _tableNestingDepth--
       }
       continue
     }
@@ -931,7 +999,7 @@ async function blocksToDocxChildren(blocks, inheritedColor) {
           })
         )
       } catch (err) {
-        // Image export failed — skip this block
+        if (import.meta.env.DEV) console.warn("[DOCX] Image block skipped:", err.message)
       }
       continue
     }
@@ -1030,34 +1098,33 @@ export async function convertHtmlToDocx(html) {
   container.style.cssText = `position:fixed;left:-9999px;top:-9999px;opacity:0;pointer-events:none;width:${editorWidth}px;`
   document.body.appendChild(container)
 
-  // Stamp real column widths from the actual editor DOM onto container tables
-  // The editor has accurate CSS layout; the off-screen container may differ
+  // Build array of column ratios from the live editor DOM (reflects column resizes).
+  // Index matches the order tables appear in the HTML — consumed by blocksToDocxChildren.
+  _tableRatiosArray = []
+  _tableConvertIndex = 0
   if (editorEl0) {
     const editorTables = editorEl0.querySelectorAll("table")
-    const containerTables = container.querySelectorAll("table")
-    for (let t = 0; t < Math.min(editorTables.length, containerTables.length); t++) {
-      const eRows = editorTables[t].querySelectorAll(":scope > thead > tr, :scope > tbody > tr, :scope > tfoot > tr, :scope > tr")
-      const cRows = containerTables[t].querySelectorAll(":scope > thead > tr, :scope > tbody > tr, :scope > tfoot > tr, :scope > tr")
-      if (eRows.length > 0 && cRows.length > 0) {
-        // Find the row with the most individual cells (skip rows with colspan headers)
-        let bestRowIdx = 0, bestCellCount = 0
-        for (let r = 0; r < eRows.length; r++) {
-          const cells = eRows[r].querySelectorAll(":scope > th, :scope > td")
-          if (cells.length > bestCellCount) { bestCellCount = cells.length; bestRowIdx = r }
-        }
-        const eCells = eRows[bestRowIdx].querySelectorAll(":scope > th, :scope > td")
-        const cCells = cRows[bestRowIdx]?.querySelectorAll(":scope > th, :scope > td")
-        if (cCells) {
-          let totalW = 0
-          for (const c of eCells) totalW += c.offsetWidth
-          if (totalW > 0 && eCells.length === cCells.length) {
-            for (let i = 0; i < eCells.length; i++) {
-              // Store precise ratio (4 decimals) to avoid rounding errors on narrow columns
-              cCells[i].setAttribute("data-editor-ratio", (eCells[i].offsetWidth / totalW).toFixed(4))
-            }
-          }
-        }
+    for (let t = 0; t < editorTables.length; t++) {
+      const eRows = editorTables[t].querySelectorAll(
+        ":scope > thead > tr, :scope > tbody > tr, :scope > tfoot > tr, :scope > tr"
+      )
+      if (eRows.length === 0) { _tableRatiosArray.push(null); continue }
+      let bestIdx = 0, bestN = 0
+      for (let r = 0; r < eRows.length; r++) {
+        const n = eRows[r].querySelectorAll(":scope > th, :scope > td").length
+        if (n > bestN) { bestN = n; bestIdx = r }
       }
+      const eCells = eRows[bestIdx].querySelectorAll(":scope > th, :scope > td")
+      let totalW = 0
+      for (const c of eCells) totalW += c.offsetWidth
+      if (totalW <= 0) { _tableRatiosArray.push(null); continue }
+      const ratios = []
+      for (const c of eCells) {
+        const cs = parseInt(c.getAttribute("colspan") || "1", 10)
+        const r = c.offsetWidth / totalW
+        for (let i = 0; i < cs; i++) ratios.push(r / cs)
+      }
+      _tableRatiosArray.push(ratios)
     }
   }
 
@@ -1332,7 +1399,7 @@ export async function convertHtmlToDocx(html) {
 
     // Style auto-detection complete
   } catch (e) {
-    // Could not read editor styles — using defaults
+    if (import.meta.env.DEV) console.warn("[DOCX] Style detection failed, using defaults:", e.message)
   }
 
   // Remove probe elements so they don't get exported as content

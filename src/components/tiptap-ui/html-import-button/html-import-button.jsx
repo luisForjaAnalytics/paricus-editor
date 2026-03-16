@@ -229,9 +229,10 @@ async function tryConvertToDataUri(src) {
 }
 
 function blobToDataUri(blob) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const r = new FileReader()
     r.onloadend = () => resolve(r.result)
+    r.onerror = () => reject(new Error("FileReader failed"))
     r.readAsDataURL(blob)
   })
 }
@@ -242,7 +243,8 @@ function HtmlImportModal({ isOpen, onClose, onAccept }) {
   const textareaRef = useRef(null);
 
   useEffect(() => {
-    if (isOpen && textareaRef.current) {
+    if (isOpen) {
+      setHtml("");
       setTimeout(() => textareaRef.current?.focus(), 100);
     }
   }, [isOpen]);
@@ -354,6 +356,7 @@ export const HtmlImportButton = forwardRef(
         if (!editor || !rawHtml.trim()) return;
         const normalized = normalizeImportedHtml(rawHtml);
         const clean = sanitizeHtml(normalized);
+        editor.commands.clearContent();
         editor.commands.setContent(clean);
         setIsOpen(false);
         // Convert external images to data URIs in background

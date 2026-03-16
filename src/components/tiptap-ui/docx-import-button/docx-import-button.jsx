@@ -19,12 +19,6 @@ export const DocxImportButton = forwardRef(
         const file = event.target.files?.[0]
         if (!file || !editor) return
 
-        const MAX_DOCX_SIZE = 50 * 1024 * 1024 // 50MB
-        if (file.size > MAX_DOCX_SIZE) {
-          if (import.meta.env.DEV) console.error(t("errors.fileTooLarge"))
-          return
-        }
-
         setIsImporting(true)
 
         try {
@@ -35,6 +29,7 @@ export const DocxImportButton = forwardRef(
             if (import.meta.env.DEV) console.warn("Word import warnings:", warnings)
           }
 
+          editor.commands.clearContent()
           editor.commands.setContent(sanitizeHtml(html))
         } catch (error) {
           if (import.meta.env.DEV) console.error(t("errors.docxImportFailed"), error)

@@ -15,7 +15,7 @@ import {
 import { Card, CardBody } from "@/components/tiptap-ui-primitive/card"
 import { GREEN_ITEM_STYLE } from "@/lib/editor-config"
 
-const LINE_HEIGHTS = [0.5, 1, 1.15, 1.5, 2, 2.5, 3]
+const LINE_HEIGHTS = [1, 1.5, 2, 2.5, 3]
 
 function getActiveLineHeight(editor) {
   if (!editor || !editor.isEditable) return null

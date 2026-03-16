@@ -139,7 +139,26 @@ async function extractFormattingFromXml(arrayBuffer) {
     formattedRuns.push({ text, fontColor, highlightColor, fontFamily, fontSize })
   }
 
-  return { formattedRuns }
+  // Extract table cell shading (background colors) from <w:tc> → <w:tcPr> → <w:shd>
+  // Stored as a flat array of colors in document order, matching the order cells appear in the HTML.
+  const cellColors = []
+  const tcs = doc.getElementsByTagNameNS(ns, "tc")
+  for (const tc of tcs) {
+    const tcPr = tc.getElementsByTagNameNS(ns, "tcPr")[0]
+    let fill = null
+    if (tcPr) {
+      const shdEl = tcPr.getElementsByTagNameNS(ns, "shd")[0]
+      if (shdEl) {
+        const f = shdEl.getAttributeNS(ns, "fill") || shdEl.getAttribute("w:fill")
+        if (f && f !== "auto" && f.toUpperCase() !== "FFFFFF" && f.toUpperCase() !== "000000") {
+          fill = `#${f}`
+        }
+      }
+    }
+    cellColors.push(fill)
+  }
+
+  return { formattedRuns, cellColors }
 }
 
 /**
@@ -276,6 +295,22 @@ function injectFormatting(html, formattedRuns) {
 }
 
 /**
+ * Applies table cell background colors extracted from the DOCX XML.
+ * Mammoth doesn't preserve cell shading, so we inject it as inline styles.
+ */
+function injectCellColors(html, cellColors) {
+  if (!cellColors || !cellColors.some(c => c)) return html
+  const doc = new DOMParser().parseFromString(html, "text/html")
+  const cells = doc.body.querySelectorAll("td, th")
+  for (let i = 0; i < Math.min(cells.length, cellColors.length); i++) {
+    if (cellColors[i]) {
+      cells[i].style.backgroundColor = cellColors[i]
+    }
+  }
+  return doc.body.innerHTML
+}
+
+/**
  * Converts tab characters to visible em-space characters.
  * Mammoth converts Word tabs to \t which HTML collapses to a single space.
  */
@@ -289,11 +324,13 @@ export async function convertDocxToHtml(file) {
   const arrayBuffer = await file.arrayBuffer()
 
   let formattedRuns = []
+  let cellColors = []
   try {
     const extracted = await extractFormattingFromXml(arrayBuffer)
     formattedRuns = extracted.formattedRuns
+    cellColors = extracted.cellColors || []
   } catch (e) {
-    // XML formatting extraction failed — continue without formatting
+    if (import.meta.env.DEV) console.warn("[DOCX Import] XML formatting extraction failed:", e.message)
   }
 
   const result = await mammoth.convertToHtml(
@@ -322,6 +359,7 @@ export async function convertDocxToHtml(file) {
   let html = result.value
   html = convertTabs(html)
   html = injectFormatting(html, formattedRuns)
+  html = injectCellColors(html, cellColors)
 
   const warnings = result.messages
     .filter((msg) => msg.type === "warning")

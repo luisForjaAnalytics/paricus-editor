@@ -42,7 +42,8 @@
       "Bash(find /c/desarrollo/FORJA/paricus-editor -name *.test.js -o -name *.spec.js -o -name *.test.jsx -o -name *.spec.jsx)",
       "Bash(find src:*)",
       "Read(//c/desarrolloFORJA/paricus-editor/src/components/tiptap-ui/link-popover/**)",
-      "Bash(npx vite:*)"
+      "Bash(npx vite:*)",
+      "Bash(node -e \"const m = require\\(''prosemirror-tables''\\); console.log\\(''TableMap:'', typeof m.TableMap, ''columnResizingPluginKey:'', typeof m.columnResizingPluginKey\\)\")"
     ],
     "additionalDirectories": [
       "C:\\desarrollo\\FORJA\\paricus-editor\\src\\extensions",
