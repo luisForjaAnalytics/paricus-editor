@@ -22,3 +22,6 @@ DevNotes.md
 *.njsproj
 *.sln
 *.sw?
+
+# Claude AI local config
+.claude/

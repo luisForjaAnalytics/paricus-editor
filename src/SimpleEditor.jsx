@@ -6,7 +6,7 @@ import { EditorContent, EditorContext, useEditor } from "@tiptap/react";
 
 // --- Tiptap Core Extensions ---
 import { StarterKit } from "@tiptap/starter-kit";
-import { CustomImage } from "@/extensions/custom-image";
+import { ResizableImage } from "@/extensions/resizable-image";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { TextAlign } from "@tiptap/extension-text-align";
 import { Typography } from "@tiptap/extension-typography";
@@ -405,7 +405,7 @@ export function SimpleEditor({ responsive = true } = {}) {
       TaskList,
       TaskItem.configure({ nested: true }),
       Highlight.configure({ multicolor: true }),
-      CustomImage,
+      ResizableImage,
       Typography,
       Superscript,
       Subscript,
