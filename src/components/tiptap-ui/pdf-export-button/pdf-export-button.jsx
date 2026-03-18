@@ -54,6 +54,33 @@ export const PdfExportButton = forwardRef(
         const html = resolveVars(editor.getHTML(), editor.view.dom)
         const cssText = collectStyles()
 
+        // Read orientation from PageBreak extension storage
+        const globalOrientation = editor.storage.pageBreak?.globalOrientation || "portrait"
+
+        // Check for per-page orientations
+        const pageOrientations = []
+        editor.state.doc.descendants((node) => {
+          if (node.type.name === "pageBreak") {
+            pageOrientations.push(node.attrs.orientation || globalOrientation)
+          }
+        })
+        const hasMixedOrientations = pageOrientations.some((o) => o !== globalOrientation)
+
+        // Build @page CSS rules
+        let pageRules
+        if (hasMixedOrientations) {
+          pageRules = `
+            @page { size: A4 ${globalOrientation}; margin: 10mm; }
+            @page portrait-page { size: A4 portrait; margin: 10mm; }
+            @page landscape-page { size: A4 landscape; margin: 10mm; }
+            .page-section-portrait { page: portrait-page; break-before: page; }
+            .page-section-landscape { page: landscape-page; break-before: page; }
+            .page-section-portrait:first-child, .page-section-landscape:first-child { break-before: auto; }
+          `
+        } else {
+          pageRules = `@page { size: A4 ${globalOrientation}; margin: 10mm; }`
+        }
+
         iframe = document.createElement("iframe")
         iframe.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;"
         document.body.appendChild(iframe)
@@ -66,7 +93,7 @@ export const PdfExportButton = forwardRef(
 <head>
 <meta charset="utf-8">
 <style>
-  @page { size: A4; margin: 10mm; }
+  ${pageRules}
   ${cssText}
   /* Print overrides — must come after editor styles with max specificity */
   html, body, :root {
@@ -95,11 +122,19 @@ export const PdfExportButton = forwardRef(
     color: #000 !important;
   }
   a { color: #1a56db; }
-  table { border-collapse: collapse; margin: 1em 0; width: 100%; max-width: 100%; table-layout: auto; }
+  table { border-collapse: collapse; margin: 1em 0; width: 100%; max-width: 100%; }
   table table { margin: 0.3em 0; }
   table td, table th { border: 1px solid #d1d5db !important; padding: 0.3em 0.4em; vertical-align: top; }
+  table td > p, table th > p { margin: 0 !important; }
   table ul, table ol { padding-left: 1.2em; margin: 0; }
   .print-content img { max-width: 100%; height: auto; }
+  ul[data-type="taskList"] { list-style: none !important; padding-left: 0.25em !important; }
+  ul[data-type="taskList"] li { display: flex !important; flex-direction: row !important; align-items: flex-start !important; }
+  ul[data-type="taskList"] li > label { flex-shrink: 0; padding-top: 0.25rem; padding-right: 0.5rem; }
+  ul[data-type="taskList"] li > div { flex: 1 1 0%; min-width: 0; }
+  ul[data-type="taskList"] li > div > p:first-child { margin-top: 0 !important; }
+  ul[data-type="taskList"] li[data-checked="true"] > div > p { text-decoration: line-through; opacity: 0.5; }
+  ul[data-type="taskList"] li[data-checked="true"] > div > p span { text-decoration: line-through; }
   table th:not([style*="background-color"]) { font-weight: bold; text-align: left; background-color: #f3f4f6 !important; }
   table th[style*="background-color"] { font-weight: bold; text-align: left; }
 </style>
@@ -118,6 +153,41 @@ export const PdfExportButton = forwardRef(
             stampTableWidths(editorEl, doc, { mode: "style" })
           }
         } catch { /* non-critical — columns will use auto layout */ }
+
+        // Wrap content in orientation sections for mixed page orientations
+        if (hasMixedOrientations) {
+          try {
+            const container = doc.querySelector(".print-content")
+            if (container) {
+              const children = Array.from(container.childNodes)
+              let orientIdx = -1
+              let currentO = globalOrientation
+
+              // Create first section
+              let section = doc.createElement("div")
+              section.className = `page-section-${currentO}`
+
+              const newChildren = []
+              for (const child of children) {
+                if (child.nodeType === 1 && child.getAttribute("data-type") === "page-break") {
+                  // Save current section
+                  if (section.childNodes.length > 0) newChildren.push(section)
+                  // Read next orientation
+                  orientIdx++
+                  currentO = pageOrientations[orientIdx] || globalOrientation
+                  section = doc.createElement("div")
+                  section.className = `page-section-${currentO}`
+                } else {
+                  section.appendChild(child)
+                }
+              }
+              if (section.childNodes.length > 0) newChildren.push(section)
+
+              container.innerHTML = ""
+              for (const s of newChildren) container.appendChild(s)
+            }
+          } catch { /* non-critical — will use global orientation */ }
+        }
 
         // Wait for content to render, then print
         const win = iframe.contentWindow

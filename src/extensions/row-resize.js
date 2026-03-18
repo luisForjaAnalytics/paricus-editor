@@ -29,7 +29,7 @@ class RowResizeState {
       try {
         const $cell = cellAround(tr.doc.resolve(handle))
         if (!$cell) handle = -1
-      } catch {
+      } catch { // resolve may fail if position is invalid after doc change
         handle = -1
       }
       return new RowResizeState(handle, this.dragging)
@@ -65,7 +65,7 @@ function edgeCellBottom(view, event) {
     const $cell = cellAround(view.state.doc.resolve(pos))
     if (!$cell) return -1
     return $cell.pos
-  } catch {
+  } catch { // position may be out of bounds
     return -1
   }
 }
@@ -111,7 +111,7 @@ function getRowCellPositions(view, cellPos) {
       }
     }
     return positions
-  } catch {
+  } catch { // table structure may be inconsistent during edit
     return []
   }
 }

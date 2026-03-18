@@ -69,28 +69,65 @@ body,
   color: var(--tt-theme-text);
 }
 
+// A4 dimensions at 96 DPI
+$a4-portrait-w: 794px;
+$a4-portrait-h: 1123px;
+$a4-landscape-w: 1123px;
+$a4-landscape-h: 794px;
+$a4-margin: 38px; // ~10mm
+
 .simple-editor-canvas {
   flex: 1;
   overflow: auto;
   background-color: #e0e0e0;
-  padding: 1.5rem 0 0rem 0;
- 
+  padding: 1.5rem 0 38px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
+$page-gap: 24px;
 
 .simple-editor-content {
-  max-width: 900px;
-  width: 100%;
+  width: $a4-portrait-w;
   margin: 0 auto;
-  min-height: calc(100% - 3rem);
+  min-height: $a4-portrait-h;
+  transition: width 0.3s ease;
+  position: relative;
   background-color: #ffffff;
-  border-radius: 30px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  border-radius: 1rem;
 }
 
+// Landscape orientation
+.simple-editor-content[data-orientation="landscape"] {
+  width: $a4-landscape-w;
+  min-height: $a4-landscape-h;
+}
+
+
+
 .simple-editor-content .tiptap.ProseMirror.simple-editor {
-  min-height: 100%;
-  padding: 2rem 3rem;
+  min-height: $a4-portrait-h;
+  padding: $a4-margin;
+}
+
+.simple-editor-content[data-orientation="landscape"] .tiptap.ProseMirror.simple-editor {
+  min-height: $a4-landscape-h;
+}
+
+
+.simple-editor-statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem 1rem;
+  background-color: #f3f4f6;
+  border-top: 1px solid #e5e7eb;
+  font-size: 0.75rem;
+  color: #6b7280;
+  flex-shrink: 0;
+  user-select: none;
 }
 
 .simple-editor-unavailable {
@@ -108,9 +145,16 @@ body,
 @media screen and (max-width: 480px) {
   .simple-editor-canvas {
     padding: 0.5rem;
+    align-items: stretch; // fill width on mobile
+  }
+
+  .simple-editor-content {
+    width: 100% !important;
+    min-height: auto;
   }
 
   .simple-editor-content .tiptap.ProseMirror.simple-editor {
     padding: 1rem 1.5rem;
+    min-height: auto;
   }
 }

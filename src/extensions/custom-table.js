@@ -23,7 +23,10 @@ export const CustomTable = Table.extend({
                 - (parseFloat(cs.paddingLeft) || 0)
                 - (parseFloat(cs.paddingRight) || 0)
             }
-            const colWidth = Math.floor(availableWidth / cols)
+            // Subtract border+padding overhead per column to prevent overflow
+            // (each cell has ~1px border + ~8px padding on each side ≈ 18px per cell)
+            const overhead = cols * 18
+            const colWidth = Math.floor((availableWidth - overhead) / cols)
 
             // Set colwidth on every cell in the new table so it uses
             // table-layout: fixed and columns don't shift when typing

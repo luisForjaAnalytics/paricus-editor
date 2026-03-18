@@ -152,14 +152,8 @@ export function isExtensionAvailable(editor, extensionNames) {
     ? extensionNames
     : [extensionNames]
 
-  const found = names.some((name) =>
+  return names.some((name) =>
     editor.extensionManager.extensions.some((ext) => ext.name === name))
-
-  if (!found) {
-    // Extensions not found in editor schema
-  }
-
-  return found
 }
 
 /**
@@ -329,8 +323,13 @@ export const handleImageUpload = async (file, onProgress, abortSignal) => {
       }
     }
 
+    const onAbort = () => {
+      reader.abort()
+      reject(new Error(i18next.t("errors.uploadCancelled")))
+    }
+
     const cleanup = () => {
-      if (onAbort) abortSignal?.removeEventListener("abort", onAbort)
+      abortSignal?.removeEventListener("abort", onAbort)
     }
 
     reader.onload = () => {
@@ -344,10 +343,6 @@ export const handleImageUpload = async (file, onProgress, abortSignal) => {
       reject(new Error(i18next.t("errors.fileReadFailed")))
     }
 
-    const onAbort = () => {
-      reader.abort()
-      reject(new Error(i18next.t("errors.uploadCancelled")))
-    }
     abortSignal?.addEventListener("abort", onAbort)
 
     reader.readAsDataURL(file)

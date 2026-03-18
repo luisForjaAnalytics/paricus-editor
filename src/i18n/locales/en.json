@@ -1,7 +1,8 @@
 {
   "editor": {
     "ariaLabel": "Main content area, start typing to enter text.",
-    "mobileNotAvailable": "This editor is not available on small screens. Please use a device with a larger display."
+    "mobileNotAvailable": "This editor is not available on small screens. Please use a device with a larger display.",
+    "of": "of"
   },
   "toolbar": {
     "undo": "Undo",
@@ -87,7 +88,15 @@
     "menuParagraph": "Paragraph",
     "menuInsert": "Insert",
     "menuImportExport": "Import / Export",
-    "htmlPlaceholder": "<h1>Title</h1>\n<p>Paste your <strong>HTML</strong> here...</p>"
+    "htmlPlaceholder": "<h1>Title</h1>\n<p>Paste your <strong>HTML</strong> here...</p>",
+    "orientation": "Page orientation",
+    "portrait": "Portrait",
+    "landscape": "Landscape",
+    "perPage": "Per page",
+    "perPageTitle": "Page Orientation",
+    "pageLabel": "Page",
+    "addPageBreakHint": "Add page breaks (Ctrl+Enter) to create multiple pages",
+    "clickToToggle": "Click a page to toggle its orientation"
   },
   "cellColors": {
     "gray": "Gray",

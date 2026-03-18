@@ -18,6 +18,8 @@ import {
   VerticalAlign,
   LineRuleType,
   TableLayoutType,
+  PageOrientation,
+  convertMillimetersToTwip,
 } from "docx"
 import { saveAs } from "file-saver"
 import { getProxyUrl } from "@/lib/editor-config"
@@ -65,6 +67,10 @@ function tableHasNoBorders(tableEl) {
 
 // px to twips (1px ≈ 15 twips at 96 DPI: 1440 twips/inch ÷ 96 px/inch)
 const pxToTwip = (px) => Math.round(px * 15)
+// px to half-points (Word font sizes: 1pt = 0.75px, half-point = pt * 2)
+const pxToHalfPt = (px) => Math.round(px * 0.75 * 2)
+// Extract base64 data from a data URL
+const extractBase64 = (dataUrl) => (dataUrl || "").split(",")[1] || ""
 
 /**
  * Returns the element's line-height in px ONLY if it comes from an inline style
@@ -116,7 +122,7 @@ function resolveHighlightColor(element) {
     element.getAttribute("data-color") ||
     element.style?.backgroundColor ||
     ""
-  if (!bgColor) return { highlight: "yellow" }
+  if (!bgColor) return { shading: { fill: "FFFF00" } }
 
   let resolved = bgColor
   if (bgColor.startsWith("var(")) {
@@ -130,17 +136,11 @@ function resolveHighlightColor(element) {
     }
   }
 
-  // Check if it's a named Word highlight
-  if (WORD_HIGHLIGHTS[resolved]) return { highlight: resolved }
-
-  // Convert to hex and try to map
+  // Always use shading with exact hex color to preserve the editor's pastel tones.
+  // Word's named highlights (yellow, cyan, etc.) are too intense and don't match.
   const hex = colorToHex(resolved)
   if (hex) {
-    const clean = hex.replace("#", "").toLowerCase()
-    const mapped = HEX_TO_WORD_HIGHLIGHT[clean]
-    if (mapped) return { highlight: mapped }
-    // Use shading for unmapped colors (supports any hex)
-    return { shading: { fill: clean } }
+    return { shading: { fill: hex.replace("#", "").toUpperCase() } }
   }
 
   return { highlight: "yellow" }
@@ -169,7 +169,7 @@ async function imageToBase64(src) {
       canvas.height = existingImg.naturalHeight
       canvas.getContext("2d").drawImage(existingImg, 0, 0)
       const dataUrl = canvas.toDataURL("image/png")
-      const base64 = dataUrl.split(",")[1]
+      const base64 = extractBase64(dataUrl)
       return { base64, mime: "image/png", width: existingImg.naturalWidth, height: existingImg.naturalHeight }
     }
   } catch (e) {
@@ -188,7 +188,7 @@ async function imageToBase64(src) {
       const mime = blob.type || "image/png"
       const base64 = await new Promise((resolve) => {
         const reader = new FileReader()
-        reader.onloadend = () => resolve(reader.result.split(",")[1])
+        reader.onloadend = () => resolve(extractBase64(reader.result))
         reader.readAsDataURL(blob)
       })
       const objectUrl = URL.createObjectURL(blob)
@@ -226,7 +226,7 @@ async function imageToBase64(src) {
         canvas.height = img.naturalHeight
         canvas.getContext("2d").drawImage(img, 0, 0)
         const dataUrl = canvas.toDataURL("image/png")
-        const base64 = dataUrl.split(",")[1]
+        const base64 = extractBase64(dataUrl)
         resolve({ base64, mime: "image/png", width: img.naturalWidth, height: img.naturalHeight })
       } catch (e) {
         reject(new Error("Canvas tainted: " + e.message))
@@ -365,8 +365,8 @@ function collectTextRuns(node, inherited = {}) {
     if (elFs) {
       const val = parseFloat(elFs)
       if (val) {
-        // px needs conversion, pt is direct
-        next.fontSize = elFs.includes("px") ? Math.round(val * 0.75 * 2 ) : Math.round(val * 2 )
+        // px needs conversion, pt is direct (half-points)
+        next.fontSize = elFs.includes("px") ? pxToHalfPt(val) : Math.round(val * 2)
       }
     }
 
@@ -574,7 +574,7 @@ function parseBlockElements(container, inherited = {}) {
 
     // Page break
     if (tag === "DIV" && node.getAttribute("data-type") === "page-break") {
-      blocks.push({ type: "pageBreak" })
+      blocks.push({ type: "pageBreak", orientation: node.getAttribute("data-orientation") || null })
       continue
     }
 
@@ -600,6 +600,8 @@ function collectListItems(listNode, blocks, listType, level, inherited = {}) {
     const checked = li.hasAttribute("data-checked") && li.getAttribute("data-checked") === "true"
 
     // Collect direct text content (not from nested lists)
+    // When task is checked, pass strike:true so all text runs get strikethrough
+    const taskInherited = (isTask && checked) ? { ...inherited, strike: true } : inherited
     const textNodes = []
     const nestedLists = []
 
@@ -610,19 +612,20 @@ function collectListItems(listNode, blocks, listType, level, inherited = {}) {
         // Task list label — skip the checkbox input, collect text from the label content
         continue
       } else if (child.nodeType === Node.ELEMENT_NODE && (child.tagName === "DIV" || child.tagName === "P")) {
-        textNodes.push(...collectTextRuns(child, inherited))
+        textNodes.push(...collectTextRuns(child, taskInherited))
       } else if (child.nodeType === Node.TEXT_NODE) {
         const text = child.textContent
         if (text) {
           const runOpts = { text }
-          if (inherited.fontFamily) runOpts.font = inherited.fontFamily
-          if (inherited.fontSize) runOpts.size = inherited.fontSize
-          if (inherited.color) runOpts.color = inherited.color
-          if (inherited.bold) runOpts.bold = true
+          if (taskInherited.fontFamily) runOpts.font = taskInherited.fontFamily
+          if (taskInherited.fontSize) runOpts.size = taskInherited.fontSize
+          if (taskInherited.color) runOpts.color = taskInherited.color
+          if (taskInherited.bold) runOpts.bold = true
+          if (taskInherited.strike) runOpts.strike = true
           textNodes.push(new TextRun(runOpts))
         }
       } else if (child.nodeType === Node.ELEMENT_NODE) {
-        textNodes.push(...collectTextRuns(child, inherited))
+        textNodes.push(...collectTextRuns(child, taskInherited))
       }
     }
 
@@ -672,12 +675,13 @@ async function blocksToDocxChildren(blocks, inheritedColor) {
 
   for (const block of blocks) {
     if (block.type === "pageBreak") {
-      children.push(
-        new Paragraph({
-          children: [],
-          pageBreakBefore: true,
-        })
-      )
+      const pbParagraph = new Paragraph({
+        children: [],
+        pageBreakBefore: true,
+      })
+      pbParagraph._pageBreak = true
+      pbParagraph._orientation = block.orientation || null
+      children.push(pbParagraph)
       continue
     }
 
@@ -829,7 +833,7 @@ async function blocksToDocxChildren(blocks, inheritedColor) {
               cellBorderConfig = { top: border, bottom: border, left: border, right: border }
             }
 
-            // Vertical alignment — read from CSS (editor defaults to top)
+            // Vertical alignment — check inline style first, then computed
             let cellVertAlign = VerticalAlign.TOP
             const vAlign = cell.style?.verticalAlign || (computedCell && computedCell.verticalAlign)
             if (vAlign === "middle" || vAlign === "center") cellVertAlign = VerticalAlign.CENTER
@@ -855,7 +859,7 @@ async function blocksToDocxChildren(blocks, inheritedColor) {
             const inlineFontSize = cell.style?.fontSize
             if (inlineFontSize) {
               const px = parseFloat(inlineFontSize)
-              if (px) cellInherited.fontSize = Math.round(px * 0.75 * 2 )
+              if (px) cellInherited.fontSize = pxToHalfPt(px)
             }
             // Bold: read from computed to detect TH font-weight
             const cellFontWeight = computedCell && computedCell.fontWeight
@@ -1041,7 +1045,7 @@ async function blocksToDocxChildren(blocks, inheritedColor) {
       const listSpacing = block._lineHeightPx > 0
         ? { line: Math.round(pxToTwip(block._lineHeightPx)), lineRule: LineRuleType.EXACTLY, after: _listParaAfter }
         : block._insideTable
-          ? undefined
+          ? { before: 0, after: 0 }
           : { line: _listLineSpacing, after: _listParaAfter }
       const listOpts = {
         children: runs,
@@ -1085,7 +1089,75 @@ async function blocksToDocxChildren(blocks, inheritedColor) {
   return children
 }
 
-export async function convertHtmlToDocx(html) {
+// A4 dimensions in twips
+const A4_WIDTH_TWIPS = convertMillimetersToTwip(210)  // 11906
+const A4_HEIGHT_TWIPS = convertMillimetersToTwip(297) // 16838
+
+function buildSections(children, pageMargins, orientationData) {
+  const globalO = orientationData?.global || "portrait"
+  const perPage = orientationData?.perPage || []
+  const hasMixed = perPage.length > 0 && perPage.some((p) => p.orientation !== globalO)
+
+  function makeSectionProps(orientation) {
+    const isLandscape = orientation === "landscape"
+    return {
+      page: {
+        ...(pageMargins ? { margin: pageMargins } : {}),
+        size: {
+          width: isLandscape ? A4_HEIGHT_TWIPS : A4_WIDTH_TWIPS,
+          height: isLandscape ? A4_WIDTH_TWIPS : A4_HEIGHT_TWIPS,
+          orientation: isLandscape ? PageOrientation.LANDSCAPE : PageOrientation.PORTRAIT,
+        },
+      },
+    }
+  }
+
+  if (!hasMixed) {
+    // Single section with uniform orientation
+    return [
+      {
+        children,
+        properties: makeSectionProps(globalO),
+      },
+    ]
+  }
+
+  // Split children at page breaks into multiple sections
+  const sections = []
+  let currentChildren = []
+  let pageBreakIdx = 0
+
+  for (const child of children) {
+    // Detect page break paragraphs (they have pageBreakBefore and empty content)
+    if (child._pageBreak) {
+      // End current section
+      if (currentChildren.length > 0) {
+        const orientation = pageBreakIdx === 0 ? globalO : (perPage[pageBreakIdx - 1]?.orientation || globalO)
+        sections.push({
+          children: currentChildren,
+          properties: makeSectionProps(orientation),
+        })
+      }
+      currentChildren = []
+      pageBreakIdx++
+    } else {
+      currentChildren.push(child)
+    }
+  }
+
+  // Last section
+  if (currentChildren.length > 0) {
+    const orientation = pageBreakIdx === 0 ? globalO : (perPage[pageBreakIdx - 1]?.orientation || globalO)
+    sections.push({
+      children: currentChildren,
+      properties: makeSectionProps(orientation),
+    })
+  }
+
+  return sections.length > 0 ? sections : [{ children, properties: makeSectionProps(globalO) }]
+}
+
+export async function convertHtmlToDocx(html, orientationData = null) {
   bookmarkCounter = 0
   const container = document.createElement("div")
   // Apply editor classes so CSS rules (fonts, colors, backgrounds) cascade properly
@@ -1121,8 +1193,8 @@ export async function convertHtmlToDocx(html) {
       const ratios = []
       for (const c of eCells) {
         const cs = parseInt(c.getAttribute("colspan") || "1", 10)
-        const r = c.offsetWidth / totalW
-        for (let i = 0; i < cs; i++) ratios.push(r / cs)
+        const ratio = c.offsetWidth / totalW
+        for (let i = 0; i < cs; i++) ratios.push(ratio / cs)
       }
       _tableRatiosArray.push(ratios)
     }
@@ -1138,9 +1210,6 @@ export async function convertHtmlToDocx(html) {
   let listIndentPerLevel = 400 // fallback in twips
   let listHanging = 200
   let pageMargins = null // auto-detected from editor padding
-
-  // px to half-points (1px = 0.75pt at 96 DPI, half-points = pt * 2)
-  const pxToHalfPt = (px) => Math.round(px * 0.75 * 2)
 
   // Track probe elements created for style detection so we can remove them before parsing
   const probeElements = []
@@ -1473,16 +1542,7 @@ export async function convertHtmlToDocx(html) {
         },
       ],
     },
-    sections: [
-      {
-        children,
-        properties: pageMargins ? {
-          page: {
-            margin: pageMargins,
-          },
-        } : undefined,
-      },
-    ],
+    sections: buildSections(children, pageMargins, orientationData),
   })
 
   const blob = await Packer.toBlob(doc)

@@ -19,7 +19,18 @@ export const DocxExportButton = forwardRef(
       try {
         const { convertHtmlToDocx, downloadDocx } = await loadDocxExporter()
         const html = editor.getHTML()
-        const blob = await convertHtmlToDocx(html)
+
+        // Collect orientation data from PageBreak extension
+        const globalOrientation = editor.storage.pageBreak?.globalOrientation || "portrait"
+        const perPage = []
+        editor.state.doc.descendants((node) => {
+          if (node.type.name === "pageBreak") {
+            perPage.push({ orientation: node.attrs.orientation || globalOrientation })
+          }
+        })
+        const orientationData = { global: globalOrientation, perPage }
+
+        const blob = await convertHtmlToDocx(html, orientationData)
         downloadDocx(blob)
       } catch (error) {
         if (import.meta.env.DEV) console.error(t("errors.docxExportFailed"), error)

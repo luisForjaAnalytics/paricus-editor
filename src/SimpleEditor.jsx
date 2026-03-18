@@ -88,6 +88,7 @@ import { FontSizeDropdown } from "@/components/tiptap-ui/font-size-dropdown";
 import { LineHeightDropdown } from "@/components/tiptap-ui/line-height-dropdown";
 import { LanguageSwitcher } from "@/components/tiptap-ui/language-switcher";
 import { ToolbarPanel } from "@/components/tiptap-ui/toolbar-panel/toolbar-panel";
+import { PageOrientationDropdown } from "@/components/tiptap-ui/page-orientation-dropdown";
 
 // --- Icons ---
 import { ArrowLeftIcon } from "@/components/tiptap-icons/arrow-left-icon";
@@ -128,7 +129,7 @@ const ImportExportIcon = ({ className }) => (
   </svg>
 );
 
-const CompactToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile }) => {
+const CompactToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile, totalPages = 1 }) => {
   const { t } = useTranslation();
   const [activePanel, setActivePanel] = useState(null);
 
@@ -224,6 +225,7 @@ const CompactToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile }) =>
           <div className="toolbar-panel-separator" />
           <div className="toolbar-panel-row">
             <PageBreakButton />
+            <PageOrientationDropdown portal totalPages={totalPages} />
             <BookmarkButton portal />
             <TocButton />
             <SpecialCharsButton portal />
@@ -255,7 +257,7 @@ const CompactToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile }) =>
   );
 };
 
-const MainToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile, responsive = true }) => {
+const MainToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile, responsive = true, totalPages = 1 }) => {
   const { t } = useTranslation();
   const isCompact = useIsBreakpoint("max", 1024);
 
@@ -266,6 +268,7 @@ const MainToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile, respons
         onHighlighterClick={onHighlighterClick}
         onLinkClick={onLinkClick}
         isMobile={isMobile}
+        totalPages={totalPages}
       />
     );
   }
@@ -324,6 +327,7 @@ const MainToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile, respons
       <ToolbarGroup>
         <ImageUploadButton />
         <PageBreakButton />
+        <PageOrientationDropdown portal={isMobile} totalPages={totalPages} />
         <BookmarkButton portal={isMobile} />
         <HeadingDropdownMenu levels={[1, 2, 3, 4]} portal={isMobile} />
         <TocButton />
@@ -372,7 +376,10 @@ export function SimpleEditor({ responsive = true } = {}) {
   const isCompact = useIsBreakpoint("max", 1024);
   const { height } = useWindowSize();
   const [mobileView, setMobileView] = useState("main");
+  const [orientation, setOrientation] = useState("portrait");
+  const [pageInfo, setPageInfo] = useState({ current: 1, total: 1 });
   const toolbarRef = useRef(null);
+  const contentRef = useRef(null);
 
   // Force light mode & expose editor for debugging
   useEffect(() => {
@@ -453,6 +460,67 @@ export function SimpleEditor({ responsive = true } = {}) {
     }
   }, [isMobile, mobileView]);
 
+  // A4 page height adjusted for editor's taller line-height vs Word export
+  // Editor uses line-height: 1.6, Word uses ~1.15 single spacing
+  // So same content takes ~1.2x more vertical space in editor
+  const A4_PAGE_HEIGHT = orientation === "landscape" ? 1120 : 1560;
+
+  // Track orientation and page count
+  useEffect(() => {
+    if (!editor) return;
+    const handleTransaction = () => {
+      const o = editor.storage.pageBreak?.globalOrientation || "portrait";
+      setOrientation(o);
+    };
+    editor.on("transaction", handleTransaction);
+    handleTransaction();
+    return () => editor.off("transaction", handleTransaction);
+  }, [editor]);
+
+  // Page boundary calculation
+  useEffect(() => {
+    if (!editor) return;
+
+    const updatePages = () => {
+      const el = contentRef.current?.querySelector?.(".tiptap.ProseMirror");
+      if (!el) return;
+
+      const h = el.scrollHeight;
+      const totalPages = Math.max(1, Math.ceil(h / A4_PAGE_HEIGHT));
+
+      if (contentRef.current && h > A4_PAGE_HEIGHT) {
+        contentRef.current.style.minHeight = `${h}px`;
+      }
+
+      // Current page from cursor
+      try {
+        const sel = editor.view.domAtPos(editor.state.selection.from);
+        const node = sel?.node?.nodeType === 3 ? sel.node.parentElement : sel?.node;
+        if (node && el) {
+          const cursorTop = node.getBoundingClientRect().top - el.getBoundingClientRect().top;
+          const currentPage = Math.min(totalPages, Math.max(1, Math.floor(cursorTop / A4_PAGE_HEIGHT) + 1));
+          setPageInfo({ current: currentPage, total: totalPages });
+          return;
+        }
+      } catch { /* fallback */ }
+      setPageInfo((prev) => ({ ...prev, total: totalPages }));
+    };
+
+    editor.on("transaction", updatePages);
+    const el = contentRef.current?.querySelector?.(".tiptap.ProseMirror");
+    let observer;
+    if (el) {
+      observer = new ResizeObserver(updatePages);
+      observer.observe(el);
+    }
+    updatePages();
+
+    return () => {
+      editor.off("transaction", updatePages);
+      observer?.disconnect();
+    };
+  }, [editor, A4_PAGE_HEIGHT]);
+
   if (!responsive && isCompact) {
     return (
       <div className="simple-editor-wrapper">
@@ -482,6 +550,7 @@ export function SimpleEditor({ responsive = true } = {}) {
               onLinkClick={() => setMobileView("link")}
               isMobile={isMobile}
               responsive={responsive}
+              totalPages={pageInfo.total}
             />
           ) : (
             <MobileToolbarContent
@@ -492,11 +561,20 @@ export function SimpleEditor({ responsive = true } = {}) {
         </Toolbar>
 
         <div className="simple-editor-canvas">
-          <EditorContent
-            editor={editor}
-            role="presentation"
+          <div
+            ref={contentRef}
             className="simple-editor-content"
-          />
+            data-orientation={orientation}
+          >
+            <EditorContent
+              editor={editor}
+              role="presentation"
+            />
+          </div>
+        </div>
+
+        <div className="simple-editor-statusbar">
+          <span>{t("toolbar.pageLabel")} {pageInfo.current} {t("editor.of")} {pageInfo.total}</span>
         </div>
       </EditorContext.Provider>
     </div>

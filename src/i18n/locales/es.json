@@ -1,7 +1,8 @@
 {
   "editor": {
     "ariaLabel": "Área de contenido principal, comienza a escribir para ingresar texto.",
-    "mobileNotAvailable": "Este editor no está disponible en pantallas pequeñas. Por favor, utilice un dispositivo con una pantalla más grande."
+    "mobileNotAvailable": "Este editor no está disponible en pantallas pequeñas. Por favor, utilice un dispositivo con una pantalla más grande.",
+    "of": "de"
   },
   "toolbar": {
     "undo": "Deshacer",
@@ -87,7 +88,15 @@
     "menuParagraph": "Párrafo",
     "menuInsert": "Insertar",
     "menuImportExport": "Importar / Exportar",
-    "htmlPlaceholder": "<h1>Título</h1>\n<p>Pega tu <strong>HTML</strong> aquí...</p>"
+    "htmlPlaceholder": "<h1>Título</h1>\n<p>Pega tu <strong>HTML</strong> aquí...</p>",
+    "orientation": "Orientación de página",
+    "portrait": "Vertical",
+    "landscape": "Horizontal",
+    "perPage": "Por página",
+    "perPageTitle": "Orientación de Página",
+    "pageLabel": "Página",
+    "addPageBreakHint": "Agrega saltos de página (Ctrl+Enter) para crear múltiples páginas",
+    "clickToToggle": "Haz clic en una página para cambiar su orientación"
   },
   "cellColors": {
     "gray": "Gris",

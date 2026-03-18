@@ -245,7 +245,8 @@ function HtmlImportModal({ isOpen, onClose, onAccept }) {
   useEffect(() => {
     if (isOpen) {
       setHtml("");
-      setTimeout(() => textareaRef.current?.focus(), 100);
+      const timer = setTimeout(() => textareaRef.current?.focus(), 100);
+      return () => clearTimeout(timer);
     }
   }, [isOpen]);
 
