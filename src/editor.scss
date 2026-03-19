@@ -142,15 +142,29 @@ $page-gap: 24px;
   line-height: 1.5;
 }
 
-@media screen and (max-width: 480px) {
+// When viewport is narrower than A4 portrait + canvas padding, fill available width
+@media screen and (max-width: 830px) {
   .simple-editor-canvas {
-    padding: 0.5rem;
-    align-items: stretch; // fill width on mobile
+    padding: 1rem 0.75rem 38px 0.75rem;
+    align-items: stretch;
   }
 
   .simple-editor-content {
     width: 100% !important;
-    min-height: auto;
+    max-width: $a4-portrait-w;
+    border-radius: 0.5rem;
+  }
+
+  .simple-editor-content[data-orientation="landscape"] {
+    width: 100% !important;
+    max-width: $a4-landscape-w;
+  }
+}
+
+// Small mobile screens — reduce padding further
+@media screen and (max-width: 480px) {
+  .simple-editor-canvas {
+    padding: 0.5rem;
   }
 
   .simple-editor-content .tiptap.ProseMirror.simple-editor {
