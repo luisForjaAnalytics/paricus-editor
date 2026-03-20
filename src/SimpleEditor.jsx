@@ -80,6 +80,7 @@ import { HtmlImportButton } from "@/components/tiptap-ui/html-import-button";
 import { TableDropdownMenu, TableEditMenu } from "@/components/tiptap-ui/table-dropdown-menu";
 import { RemoveFormattingButton } from "@/components/tiptap-ui/remove-formatting-button";
 import { PageBreakButton } from "@/components/tiptap-ui/page-break-button";
+import { NewDocumentButton } from "@/components/tiptap-ui/new-document-button";
 import { BookmarkButton } from "@/components/tiptap-ui/bookmark-button";
 import { TocButton } from "@/components/tiptap-ui/toc-button";
 import { SpecialCharsButton } from "@/components/tiptap-ui/special-chars-button";
@@ -240,6 +241,7 @@ const CompactToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile, tota
           onOpenChange={handlePanelChange("importexport")}
         >
           <div className="toolbar-panel-row">
+            <NewDocumentButton />
             <DocxImportButton />
             <HtmlImportButton />
             <DocxExportButton />
@@ -335,6 +337,7 @@ const MainToolbarContent = ({ onHighlighterClick, onLinkClick, isMobile, respons
       </ToolbarGroup>
       <ToolbarSeparator />
       <ToolbarGroup>
+        <NewDocumentButton />
         <DocxImportButton />
         <HtmlImportButton />
         <DocxExportButton />

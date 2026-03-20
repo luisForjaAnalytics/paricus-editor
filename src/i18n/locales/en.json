@@ -50,6 +50,8 @@
     "importHtmlHint": "Paste your HTML code below. It will be sanitized and rendered in the editor.",
     "importHtmlAccept": "Accept",
     "importHtmlCancel": "Cancel",
+    "newDocument": "New Document",
+    "newDocumentConfirm": "This will clear all current content. Are you sure?",
     "table": "Table",
     "tableSelect": "Select size",
     "tableAddRowBefore": "Insert row above",

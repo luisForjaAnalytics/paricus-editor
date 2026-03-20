@@ -44,6 +44,8 @@
     "importHtmlHint": "Pega tu código HTML abajo. Se limpiará y renderizará en el editor.",
     "importHtmlAccept": "Aceptar",
     "importHtmlCancel": "Cancelar",
+    "newDocument": "Nuevo Documento",
+    "newDocumentConfirm": "Se borrará todo el contenido actual. ¿Estás seguro?",
     "exportDocx": "Exportar a Word",
     "exportPdf": "Exportar a PDF",
     "highlight": "Resaltar",
