@@ -460,10 +460,8 @@ export function SimpleEditor({ responsive = true } = {}) {
     }
   }, [isMobile, mobileView]);
 
-  // A4 page height adjusted for editor's taller line-height vs Word export
-  // Editor uses line-height: 1.6, Word uses ~1.15 single spacing
-  // So same content takes ~1.2x more vertical space in editor
-  const A4_PAGE_HEIGHT = orientation === "landscape" ? 1120 : 1560;
+  // A4 page height in pixels at 96 DPI (must match CSS $a4-portrait-h / $a4-landscape-h)
+  const A4_PAGE_HEIGHT = orientation === "landscape" ? 794 : 1123;
 
   // Track orientation and page count
   useEffect(() => {
@@ -488,8 +486,8 @@ export function SimpleEditor({ responsive = true } = {}) {
       const h = el.scrollHeight;
       const totalPages = Math.max(1, Math.ceil(h / A4_PAGE_HEIGHT));
 
-      if (contentRef.current && h > A4_PAGE_HEIGHT) {
-        contentRef.current.style.minHeight = `${h}px`;
+      if (contentRef.current) {
+        contentRef.current.style.minHeight = h > A4_PAGE_HEIGHT ? `${h}px` : "";
       }
 
       // Current page from cursor

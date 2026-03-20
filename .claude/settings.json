@@ -43,7 +43,11 @@
       "Bash(find src:*)",
       "Read(//c/desarrolloFORJA/paricus-editor/src/components/tiptap-ui/link-popover/**)",
       "Bash(npx vite:*)",
-      "Bash(node -e \"const m = require\\(''prosemirror-tables''\\); console.log\\(''TableMap:'', typeof m.TableMap, ''columnResizingPluginKey:'', typeof m.columnResizingPluginKey\\)\")"
+      "Bash(node -e \"const m = require\\(''prosemirror-tables''\\); console.log\\(''TableMap:'', typeof m.TableMap, ''columnResizingPluginKey:'', typeof m.columnResizingPluginKey\\)\")",
+      "Bash(git stash:*)",
+      "Bash(git checkout:*)",
+      "Read(//c/desenvolupamento/FORJA/paricus-editor/src/lib/**)",
+      "Bash(grep -n \"TODO\\\\|FIXME\\\\|HACK\\\\|XXX\" c:/desarrollo/FORJA/paricus-editor/src/SimpleEditor.jsx c:/desarrollo/FORJA/paricus-editor/src/lib/docx-exporter.js c:/desarrollo/FORJA/paricus-editor/src/extensions/*.js)"
     ],
     "additionalDirectories": [
       "C:\\desarrollo\\FORJA\\paricus-editor\\src\\extensions",

@@ -9,7 +9,7 @@ export const CustomTable = Table.extend({
     return {
       ...this.parent?.(),
       insertTable:
-        ({ rows = 3, cols = 3, withHeaderRow = true } = {}) =>
+        ({ rows = 3, cols = 3, withHeaderRow = false } = {}) =>
         ({ tr, dispatch, editor }) => {
           const node = createTable(editor.schema, rows, cols, withHeaderRow)
 
@@ -31,9 +31,12 @@ export const CustomTable = Table.extend({
             // Set colwidth on every cell in the new table so it uses
             // table-layout: fixed and columns don't shift when typing
             const mapped = setColwidthOnTable(node, colWidth, editor.schema)
+            const compactTable = mapped.type.create(
+              { ...mapped.attrs, compact: true }, mapped.content, mapped.marks
+            )
 
             const offset = tr.selection.from + 1
-            tr.replaceSelectionWith(mapped)
+            tr.replaceSelectionWith(compactTable)
               .scrollIntoView()
               .setSelection(TextSelection.near(tr.doc.resolve(offset)))
           }

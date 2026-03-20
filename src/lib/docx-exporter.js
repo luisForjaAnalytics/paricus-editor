@@ -69,6 +69,15 @@ function tableHasNoBorders(tableEl) {
 const pxToTwip = (px) => Math.round(px * 15)
 // px to half-points (Word font sizes: 1pt = 0.75px, half-point = pt * 2)
 const pxToHalfPt = (px) => Math.round(px * 0.75 * 2)
+// Scale image dimensions: apply proportional sizing and cap at max width
+function scaleImageDims(specW, specH, naturalW, naturalH, maxWidth = 600) {
+  let w = specW || naturalW || 300
+  let h = specH || naturalH || 200
+  if (specW && !specH && naturalW > 0) h = Math.round(naturalH * (specW / naturalW))
+  else if (specH && !specW && naturalH > 0) w = Math.round(naturalW * (specH / naturalH))
+  if (w > maxWidth) { h = Math.round(h * (maxWidth / w)); w = maxWidth }
+  return { w, h }
+}
 // Extract base64 data from a data URL
 const extractBase64 = (dataUrl) => (dataUrl || "").split(",")[1] || ""
 
@@ -91,9 +100,20 @@ function getExplicitLineHeightPx(el) {
 }
 
 function getAlignment(element) {
+  // 1) Check inline style attribute (fastest)
   const style = element.getAttribute("style") || ""
-  const match = style.match(/text-align:\s*(left|center|right|justify)/)
-  return match ? ALIGN_MAP[match[1]] : undefined
+  const match = style.match(/text-align:\s*(left|center|right|justify|start|end)/)
+  if (match) return ALIGN_MAP[match[1]] || ALIGN_MAP[match[1] === "start" ? "left" : match[1] === "end" ? "right" : match[1]]
+  // 2) Check element.style property (set programmatically by TipTap)
+  if (element.style?.textAlign) {
+    return ALIGN_MAP[element.style.textAlign] || undefined
+  }
+  // 3) Check computed style as last resort (inherits from parent)
+  try {
+    const computed = getComputedStyle(element).textAlign
+    if (computed && computed !== "start") return ALIGN_MAP[computed] || undefined
+  } catch { /* off-screen element may not have computed styles */ }
+  return undefined
 }
 
 // Word only accepts these named highlight colors
@@ -396,9 +416,15 @@ function collectTextRuns(node, inherited = {}) {
     }
 
     if (tag === "IMG") {
-      // Capture HTML-specified dimensions for proper sizing in export
-      const imgWidth = parseInt(child.getAttribute("width") || child.style.width, 10) || null
-      const imgHeight = parseInt(child.getAttribute("height") || child.style.height, 10) || null
+      // Use rendered size (reflects user resizes), fall back to style/attribute, then natural
+      const imgWidth = child.offsetWidth
+        || parseInt(child.style.width, 10)
+        || parseInt(child.getAttribute("width"), 10)
+        || null
+      const imgHeight = child.offsetHeight
+        || parseInt(child.style.height, 10)
+        || parseInt(child.getAttribute("height"), 10)
+        || null
       runs.push({ __image: child.getAttribute("src"), __imgWidth: imgWidth, __imgHeight: imgHeight })
       continue
     }
@@ -428,22 +454,7 @@ async function processImageRuns(runs) {
     if (run.__image) {
       try {
         const { base64, width: naturalW, height: naturalH } = await imageToBase64(run.__image)
-        // Use HTML-specified dimensions if available, otherwise use natural dimensions
-        let finalW = run.__imgWidth || naturalW || 300
-        let finalH = run.__imgHeight || naturalH || 200
-        // If only width is specified, calculate height proportionally
-        if (run.__imgWidth && !run.__imgHeight && naturalW > 0) {
-          finalH = Math.round(naturalH * (run.__imgWidth / naturalW))
-        } else if (run.__imgHeight && !run.__imgWidth && naturalH > 0) {
-          finalW = Math.round(naturalW * (run.__imgHeight / naturalH))
-        }
-        // Cap at max width for page fit
-        const maxWidth = 600
-        if (finalW > maxWidth) {
-          const scale = maxWidth / finalW
-          finalW = maxWidth
-          finalH = Math.round(finalH * scale)
-        }
+        const { w: finalW, h: finalH } = scaleImageDims(run.__imgWidth, run.__imgHeight, naturalW, naturalH)
         processed.push(
           new ImageRun({
             data: Uint8Array.from(atob(base64), (c) => c.charCodeAt(0)),
@@ -558,10 +569,16 @@ function parseBlockElements(container, inherited = {}) {
       continue
     }
 
-    // Images at block level
+    // Images at block level — use rendered size (reflects user resizes)
     if (tag === "IMG") {
-      const imgW = parseInt(node.getAttribute("width") || node.style.width, 10) || null
-      const imgH = parseInt(node.getAttribute("height") || node.style.height, 10) || null
+      const imgW = node.offsetWidth
+        || parseInt(node.style.width, 10)
+        || parseInt(node.getAttribute("width"), 10)
+        || null
+      const imgH = node.offsetHeight
+        || parseInt(node.style.height, 10)
+        || parseInt(node.getAttribute("height"), 10)
+        || null
       blocks.push({ type: "image", src: node.getAttribute("src"), imgWidth: imgW, imgHeight: imgH })
       continue
     }
@@ -978,19 +995,7 @@ async function blocksToDocxChildren(blocks, inheritedColor) {
     if (block.type === "image") {
       try {
         const { base64, width: naturalW, height: naturalH } = await imageToBase64(block.src)
-        let finalW = block.imgWidth || naturalW || 300
-        let finalH = block.imgHeight || naturalH || 200
-        if (block.imgWidth && !block.imgHeight && naturalW > 0) {
-          finalH = Math.round(naturalH * (block.imgWidth / naturalW))
-        } else if (block.imgHeight && !block.imgWidth && naturalH > 0) {
-          finalW = Math.round(naturalW * (block.imgHeight / naturalH))
-        }
-        const maxWidth = 600
-        if (finalW > maxWidth) {
-          const s = maxWidth / finalW
-          finalW = maxWidth
-          finalH = Math.round(finalH * s)
-        }
+        const { w: finalW, h: finalH } = scaleImageDims(block.imgWidth, block.imgHeight, naturalW, naturalH)
         children.push(
           new Paragraph({
             children: [

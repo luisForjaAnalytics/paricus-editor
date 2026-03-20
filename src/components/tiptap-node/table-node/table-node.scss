@@ -10,32 +10,40 @@
     th {
       min-width: 1em;
       border: 1px solid var(--tt-gray-light-a-300);
-      padding: 0.5em 0.75em;
+      padding: 0.5rem 0.75em;
       vertical-align: top;
       box-sizing: border-box;
       position: relative;
 
-      > * {
-        margin-bottom: 0;
+      // Remove browser default margins on block elements inside cells
+      // (p has margin: 1em 0 = 16px by default, making rows too tall)
+      p, ul, ol, div, h1, h2, h3, h4, h5, h6 {
+        margin: 0 !important;
+      }
+
+      // Empty cells (only <p><br></p>) without manual resize get zero padding
+      &:not([style*="--row-h"]):has(> p:only-child > br:only-child) {
+        padding: 0;
       }
 
       // When a row has been resized (--row-h is set), constrain children so the
       // cell actually shrinks. overflow/height on td itself is ignored by browsers,
       // but max-height + overflow on block children (p, ul, etc.) works.
       &[style*="--row-h"] > * {
-        max-height: calc(var(--row-h) - 1em - 2px); // subtract padding (0.5em×2) + border (1px×2)
+        max-height: var(--row-h);
         overflow: hidden;
       }
+    }
+
+    // New tables start with zero padding (user resizes as needed)
+    &.compact-table td,
+    &.compact-table th {
+      padding: 0 3px;
     }
 
     th {
       font-weight: bold;
       text-align: left;
-
-      // Only apply default bg when no custom color is set via inline style
-      &:not([style*="background-color"]) {
-        background-color: var(--tt-gray-light-a-100);
-      }
     }
 
     .selectedCell::after {
@@ -100,9 +108,6 @@
         border-color: var(--tt-gray-dark-a-300);
       }
 
-      th:not([style*="background-color"]) {
-        background-color: var(--tt-gray-dark-a-100);
-      }
     }
   }
 }

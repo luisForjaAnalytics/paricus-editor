@@ -59,6 +59,9 @@ function applyTableStyles(view) {
       tableEl.style.minWidth = ""
     }
 
+    // Apply compact class (new tables start with zero padding)
+    tableEl.classList.toggle("compact-table", !!node.attrs.compact)
+
     // Apply width
     const w = node.attrs.tableWidth
     if (w) {
@@ -149,6 +152,14 @@ export const TableLayout = Extension.create({
               return { style: `width: ${w}; table-layout: ${w === "auto" ? "auto" : "fixed"}` }
             },
           },
+          compact: {
+            default: false,
+            parseHTML: (element) => element.getAttribute("data-compact") === "true",
+            renderHTML: (attributes) => {
+              if (!attributes.compact) return {}
+              return { "data-compact": "true" }
+            },
+          },
         },
       },
     ]
@@ -224,12 +235,11 @@ export const TableLayout = Extension.create({
                 }
 
                 // Walk up from $cell to find the table node
-                let table, tableStart, tableDepth
+                let table, tableStart
                 for (let d = $cell.depth; d >= 0; d--) {
                   const node = $cell.node(d)
                   if (node.type.name === "table") {
                     table = node
-                    tableDepth = d
                     tableStart = $cell.start(d)
                     break
                   }
