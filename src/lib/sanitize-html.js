@@ -25,7 +25,7 @@ const ALLOWED_ATTR = [
   // Images
   "src", "alt", "width", "height",
   // Tables
-  "colspan", "rowspan", "data-colwidth",
+  "colspan", "rowspan", "colwidth", "data-colwidth",
   "bgcolor", "border", "cellpadding", "cellspacing", "align", "valign",
   // Custom data attributes used by the editor
   "data-type", "data-color", "data-bookmark-id", "data-bookmark-label",
@@ -111,7 +111,8 @@ export function sanitizeHtml(html) {
   const clean = DOMPurify.sanitize(html, {
     ALLOWED_TAGS,
     ALLOWED_ATTR,
-    ALLOW_DATA_ATTR: false,
+    // data-* attributes are controlled via ALLOWED_ATTR list above
+    ALLOW_DATA_ATTR: true,
   })
 
   // Restrict input[type] to checkbox only (used by task lists)

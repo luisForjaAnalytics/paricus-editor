@@ -174,18 +174,34 @@ function normalizeImportedHtml(html) {
       const perCol = Math.round(totalPx / colspan)
       for (let c = 0; c < colspan; c++) colWidths.push(perCol)
     }
-    // Set data-colwidth on all cells in all rows
+    // Set data-colwidth on all cells, tracking rowspans to get correct column position
+    const activeRowSpans = [] // activeRowSpans[col] = remaining rows to span
     for (const row of rows) {
       const rowCells = row.querySelectorAll(":scope > td, :scope > th")
-      let colIdx = 0
+      let colPos = 0
       for (const cell of rowCells) {
-        const colspan = parseInt(cell.getAttribute("colspan") || "1", 10)
-        const widths = []
-        for (let c = 0; c < colspan && colIdx + c < colWidths.length; c++) {
-          widths.push(colWidths[colIdx + c])
+        // Skip columns occupied by rowspans from previous rows
+        while (colPos < activeRowSpans.length && activeRowSpans[colPos] > 0) {
+          activeRowSpans[colPos]--
+          colPos++
         }
-        if (widths.length > 0) cell.setAttribute("data-colwidth", widths.join(","))
-        colIdx += colspan
+        const colspan = parseInt(cell.getAttribute("colspan") || "1", 10)
+        const rowspan = parseInt(cell.getAttribute("rowspan") || "1", 10)
+        const widths = []
+        for (let c = 0; c < colspan && colPos + c < colWidths.length; c++) {
+          widths.push(colWidths[colPos + c])
+        }
+        if (widths.length > 0) cell.setAttribute("colwidth", widths.join(","))
+        // Register rowspan for occupied columns
+        for (let c = 0; c < colspan; c++) {
+          while (activeRowSpans.length <= colPos + c) activeRowSpans.push(0)
+          activeRowSpans[colPos + c] = rowspan - 1
+        }
+        colPos += colspan
+      }
+      // Decrement remaining rowspans for columns not visited in this row
+      for (let c = colPos; c < activeRowSpans.length; c++) {
+        if (activeRowSpans[c] > 0) activeRowSpans[c]--
       }
     }
   })
@@ -402,9 +418,28 @@ export const HtmlImportButton = forwardRef(
       (rawHtml) => {
         if (!editor || !rawHtml.trim()) return;
         const normalized = normalizeImportedHtml(rawHtml);
+        // Debug: check if data-colwidth survived normalization
+        const tempDiv = document.createElement("div")
+        tempDiv.innerHTML = normalized
+        const cwCells = tempDiv.querySelectorAll("[data-colwidth]")
+        console.log("[IMPORT] data-colwidth after normalize:", cwCells.length, "cells",
+          Array.from(cwCells).slice(0, 5).map(c => c.getAttribute("data-colwidth")))
         const clean = sanitizeHtml(normalized);
+        const tempDiv2 = document.createElement("div")
+        tempDiv2.innerHTML = clean
+        const cwCells2 = tempDiv2.querySelectorAll("[data-colwidth]")
+        console.log("[IMPORT] data-colwidth after sanitize:", cwCells2.length, "cells",
+          Array.from(cwCells2).slice(0, 5).map(c => c.getAttribute("data-colwidth")))
         editor.commands.clearContent();
         editor.commands.setContent(clean);
+        // Debug: check if colwidth made it into ProseMirror model
+        const cells = []
+        editor.state.doc.descendants((node) => {
+          if (node.type.name === "tableCell" || node.type.name === "tableHeader") {
+            cells.push({ colwidth: node.attrs.colwidth, colspan: node.attrs.colspan })
+          }
+        })
+        console.log("[IMPORT] ProseMirror colwidths:", JSON.stringify(cells.slice(0, 10)))
         setIsOpen(false);
         // Convert external images to data URIs in background
         embedExternalImages(editor).catch(() => {
