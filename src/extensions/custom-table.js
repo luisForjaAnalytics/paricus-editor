@@ -2,6 +2,9 @@ import { Table } from "@tiptap/extension-table"
 import { TextSelection } from "@tiptap/pm/state"
 import { createTable } from "@tiptap/extension-table"
 
+const DEFAULT_EDITOR_WIDTH = 700 // fallback when editor DOM is not available
+const CELL_OVERHEAD_PX = 18 // ~1px border + ~8px padding on each side per cell
+
 // Table layout attributes (tableAlignment, tableWidth) are defined
 // in table-layout.js as global attributes to avoid duplication.
 export const CustomTable = Table.extend({
@@ -16,7 +19,7 @@ export const CustomTable = Table.extend({
           if (dispatch) {
             // Get the actual content width (clientWidth minus padding)
             const editorEl = editor.view.dom
-            let availableWidth = 700
+            let availableWidth = DEFAULT_EDITOR_WIDTH
             if (editorEl) {
               const cs = getComputedStyle(editorEl)
               availableWidth = editorEl.clientWidth
@@ -25,7 +28,7 @@ export const CustomTable = Table.extend({
             }
             // Subtract border+padding overhead per column to prevent overflow
             // (each cell has ~1px border + ~8px padding on each side ≈ 18px per cell)
-            const overhead = cols * 18
+            const overhead = cols * CELL_OVERHEAD_PX
             const colWidth = Math.floor((availableWidth - overhead) / cols)
 
             // Set colwidth on every cell in the new table so it uses

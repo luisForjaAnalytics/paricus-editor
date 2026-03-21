@@ -426,7 +426,7 @@ export function SimpleEditor({ responsive = true } = {}) {
       FontSize,
       LineHeight,
       Indent,
-      CustomTable.configure({ resizable: true }),
+      CustomTable.configure({ resizable: true, cellMinWidth: 1 }),
       TableRow,
       CustomTableCell,
       CustomTableHeader,

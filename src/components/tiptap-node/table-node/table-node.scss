@@ -2,15 +2,15 @@
   table {
     border-collapse: collapse;
     table-layout: fixed;
-    width: 100%;
+    max-width: 100%;
     margin: 1em 0;
     overflow: hidden;
 
     td,
     th {
-      min-width: 1em;
+      min-width: 1px;
       border: 1px solid var(--tt-gray-light-a-300);
-      padding: 0.5rem 0.75em;
+      padding: 2px 4px;
       vertical-align: top;
       box-sizing: border-box;
       position: relative;
@@ -19,11 +19,6 @@
       // (p has margin: 1em 0 = 16px by default, making rows too tall)
       p, ul, ol, div, h1, h2, h3, h4, h5, h6 {
         margin: 0 !important;
-      }
-
-      // Empty cells (only <p><br></p>) without manual resize get zero padding
-      &:not([style*="--row-h"]):has(> p:only-child > br:only-child) {
-        padding: 0;
       }
 
       // When a row has been resized (--row-h is set), constrain children so the

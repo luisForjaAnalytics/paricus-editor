@@ -50,13 +50,14 @@ function applyTableStyles(view) {
       // Tables without colwidth (e.g. imported HTML) use auto layout so the
       // browser respects percentage widths on cells.
       tableEl.style.tableLayout = "auto"
-    } else {
-      // Tables with colwidth: TipTap sets a pixel width that may overflow.
-      // Override to 100% so the table fits its container. Keep table-layout
-      // as-is (prosemirror-tables manages colgroup for column proportions).
       tableEl.style.width = "100%"
+    } else {
+      // Tables with colwidth: use fixed layout so text wraps instead of pushing columns.
+      tableEl.style.tableLayout = "fixed"
       tableEl.style.maxWidth = "100%"
       tableEl.style.minWidth = ""
+      // Compact (new/unresized) tables fill 100%; once user resizes, width follows colgroup
+      tableEl.style.width = node.attrs.compact ? "100%" : ""
     }
 
     // Apply compact class (new tables start with zero padding)
@@ -246,6 +247,15 @@ export const TableLayout = Extension.create({
                 }
                 if (!table) return
                 const tablePos = tableStart - 1
+
+                // Remove compact flag on first resize so table can shrink freely
+                if (table.attrs.compact) {
+                  view.dispatch(
+                    view.state.tr.setNodeMarkup(tablePos, undefined, {
+                      ...table.attrs, compact: false,
+                    }).setMeta("addToHistory", false)
+                  )
+                }
 
                 // Check if any cell lacks colwidth
                 let needsInit = false

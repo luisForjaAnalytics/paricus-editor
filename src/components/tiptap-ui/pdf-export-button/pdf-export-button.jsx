@@ -194,6 +194,7 @@ export const PdfExportButton = forwardRef(
         if (!win) throw new Error("Cannot access iframe window")
 
         const cleanup = () => {
+          win.removeEventListener("afterprint", cleanup)
           try { iframe.parentNode?.removeChild(iframe) } catch { /* already removed */ }
         }
 

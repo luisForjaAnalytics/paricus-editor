@@ -69,10 +69,15 @@ function tableHasNoBorders(tableEl) {
 const pxToTwip = (px) => Math.round(px * 15)
 // px to half-points (Word font sizes: 1pt = 0.75px, half-point = pt * 2)
 const pxToHalfPt = (px) => Math.round(px * 0.75 * 2)
+
+const DEFAULT_IMAGE_WIDTH = 300
+const DEFAULT_IMAGE_HEIGHT = 200
+const MAX_IMAGE_WIDTH = 600
+
 // Scale image dimensions: apply proportional sizing and cap at max width
-function scaleImageDims(specW, specH, naturalW, naturalH, maxWidth = 600) {
-  let w = specW || naturalW || 300
-  let h = specH || naturalH || 200
+function scaleImageDims(specW, specH, naturalW, naturalH, maxWidth = MAX_IMAGE_WIDTH) {
+  let w = specW || naturalW || DEFAULT_IMAGE_WIDTH
+  let h = specH || naturalH || DEFAULT_IMAGE_HEIGHT
   if (specW && !specH && naturalW > 0) h = Math.round(naturalH * (specW / naturalW))
   else if (specH && !specW && naturalH > 0) w = Math.round(naturalW * (specH / naturalH))
   if (w > maxWidth) { h = Math.round(h * (maxWidth / w)); w = maxWidth }
@@ -650,11 +655,16 @@ function collectListItems(listNode, blocks, listType, level, inherited = {}) {
     const liLhSource = li.querySelector("p") || li
     const liLhPx = getExplicitLineHeightPx(liLhSource)
 
+    // Read alignment from li, its first child <p>, or inherit from cell
+    const liP = li.querySelector(":scope > p")
+    const liAlignment = getAlignment(li) || (liP && getAlignment(liP)) || inherited._cellAlignment
+
     if (isTask) {
       const prefix = checked ? "☑ " : "☐ "
       const taskBlock = {
         type: "paragraph",
         runs: [new TextRun({ text: prefix }), ...textNodes],
+        alignment: liAlignment,
         indent: level * 360 + 360,
       }
       if (inherited._insideTable) taskBlock._insideTable = true
@@ -666,6 +676,7 @@ function collectListItems(listNode, blocks, listType, level, inherited = {}) {
         listType,
         level,
         runs: textNodes.length ? textNodes : [new TextRun({ text: " " })],
+        alignment: liAlignment,
       }
       if (inherited._insideTable) listBlock._insideTable = true
       if (liLhPx) listBlock._lineHeightPx = liLhPx
@@ -1054,6 +1065,7 @@ async function blocksToDocxChildren(blocks, inheritedColor) {
           : { line: _listLineSpacing, after: _listParaAfter }
       const listOpts = {
         children: runs,
+        alignment: block.alignment,
         numbering: {
           reference: block.listType === "ordered" ? "ordered-list" : "unordered-list",
           level: block.level,
