@@ -462,14 +462,69 @@ Both import paths track active rowspans to correctly assign column widths when c
 
 ---
 
+## Web Component
+
+The editor is available as a Custom Element (`<paricus-editor>`) for use in any framework.
+
+### Build
+
+```bash
+npm run build:wc
+```
+
+Output in `dist-wc/`:
+- `paricus-editor.umd.cjs` — UMD bundle (for `<script>` tags)
+- `paricus-editor.js` — ES module
+- `paricus-editor.css` — Styles (must be included separately)
+
+### Usage
+
+```html
+<link rel="stylesheet" href="paricus-editor.css">
+<script src="paricus-editor.umd.cjs"></script>
+
+<paricus-editor lang="es" responsive="true"></paricus-editor>
+```
+
+### Attributes
+
+| Attribute | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `lang` | `"en"` \| `"es"` | `"en"` | UI language |
+| `responsive` | `"true"` \| `"false"` | `"true"` | Enable compact toolbar on small screens |
+
+### Framework Examples
+
+```html
+<!-- Angular -->
+<paricus-editor [attr.lang]="'es'" responsive="true"></paricus-editor>
+
+<!-- Vue -->
+<paricus-editor :lang="lang" responsive="true" />
+
+<!-- Svelte -->
+<paricus-editor lang="es" responsive="true" />
+```
+
+### Technical Details
+- **Library:** `@r2wc/react-to-web-component` converts React → Custom Element
+- **Entry:** `src/paricus-editor-wc.jsx`
+- **Config:** `vite.config.wc.js` (library mode, bundles all dependencies)
+- **Bundle size:** ~707 KB gzipped (includes React, TipTap, all extensions)
+
+---
+
 ## Development Scripts
 
 ```bash
 # Development server (port 5174)
 npm run dev
 
-# Production build
+# Production build (SPA)
 npm run build
+
+# Web Component build
+npm run build:wc
 
 # Preview build
 npm run preview
