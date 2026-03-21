@@ -47,17 +47,21 @@ function applyTableStyles(view) {
     })
 
     if (!hasColwidth) {
-      // Tables without colwidth (e.g. imported HTML) use auto layout so the
-      // browser respects percentage widths on cells.
-      tableEl.style.tableLayout = "auto"
+      // Tables without colwidth: fixed layout + 100% width.
+      // Imported tables get colwidths via normalizeImportedHtml percentage conversion.
+      tableEl.style.tableLayout = "fixed"
       tableEl.style.width = "100%"
     } else {
-      // Tables with colwidth: use fixed layout so text wraps instead of pushing columns.
+      // Tables with colwidth: fixed layout ensures text never pushes columns.
+      // Let prosemirror-tables control the width (it sets px from colgroup sum).
+      // Compact (new) tables start at 100%; resized tables use colgroup width.
       tableEl.style.tableLayout = "fixed"
+      if (node.attrs.compact) {
+        tableEl.style.width = "100%"
+      }
+      // Don't override width for non-compact tables — prosemirror-tables manages it
       tableEl.style.maxWidth = "100%"
       tableEl.style.minWidth = ""
-      // Compact (new/unresized) tables fill 100%; once user resizes, width follows colgroup
-      tableEl.style.width = node.attrs.compact ? "100%" : ""
     }
 
     // Apply compact class (new tables start with zero padding)

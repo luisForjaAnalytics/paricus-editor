@@ -144,6 +144,52 @@ function normalizeImportedHtml(html) {
     }
   });
 
+  // Convert percentage widths on table cells to data-colwidth so TipTap preserves
+  // them as colwidth attributes. This ensures table-layout: fixed works correctly
+  // with the original column proportions from the imported HTML.
+  const REFERENCE_WIDTH = 718 // editor content width in px (A4 portrait minus padding)
+  doc.querySelectorAll("table").forEach((table) => {
+    const rows = table.querySelectorAll(":scope > thead > tr, :scope > tbody > tr, :scope > tfoot > tr, :scope > tr")
+    if (rows.length === 0) return
+    // Find best row (most cells, fewest colspans)
+    let bestRow = rows[0], bestCount = 0
+    for (const row of rows) {
+      const count = row.querySelectorAll(":scope > td, :scope > th").length
+      if (count > bestCount) { bestCount = count; bestRow = row }
+    }
+    const cells = bestRow.querySelectorAll(":scope > td, :scope > th")
+    let hasPercentage = false
+    for (const cell of cells) {
+      const w = cell.style.getPropertyValue("width")
+      if (w && w.includes("%")) { hasPercentage = true; break }
+    }
+    if (!hasPercentage) return
+    // Apply colwidth to ALL rows based on best row's percentages
+    const colWidths = []
+    for (const cell of cells) {
+      const w = cell.style.getPropertyValue("width")
+      const pct = w ? parseFloat(w) : 0
+      const colspan = parseInt(cell.getAttribute("colspan") || "1", 10)
+      const totalPx = pct > 0 ? Math.round((pct / 100) * REFERENCE_WIDTH) : Math.round(REFERENCE_WIDTH / bestCount)
+      const perCol = Math.round(totalPx / colspan)
+      for (let c = 0; c < colspan; c++) colWidths.push(perCol)
+    }
+    // Set data-colwidth on all cells in all rows
+    for (const row of rows) {
+      const rowCells = row.querySelectorAll(":scope > td, :scope > th")
+      let colIdx = 0
+      for (const cell of rowCells) {
+        const colspan = parseInt(cell.getAttribute("colspan") || "1", 10)
+        const widths = []
+        for (let c = 0; c < colspan && colIdx + c < colWidths.length; c++) {
+          widths.push(colWidths[colIdx + c])
+        }
+        if (widths.length > 0) cell.setAttribute("data-colwidth", widths.join(","))
+        colIdx += colspan
+      }
+    }
+  })
+
   return doc.body.innerHTML;
 }
 
