@@ -4,7 +4,12 @@
     "mobileNotAvailable": "This editor is not available on small screens. Please use a device with a larger display.",
     "of": "of"
   },
+  "theme": {
+    "switchLight": "Switch to light mode",
+    "switchDark": "Switch to dark mode"
+  },
   "toolbar": {
+    "ariaLabel": "Toolbar",
     "undo": "Undo",
     "redo": "Redo",
     "heading": "Title",

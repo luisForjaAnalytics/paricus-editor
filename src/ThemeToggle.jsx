@@ -1,4 +1,5 @@
 // --- UI Primitives ---
+import { useTranslation } from "react-i18next"
 import { Button } from "@/components/tiptap-ui-primitive/button"
 
 // --- Icons ---
@@ -23,6 +24,8 @@ export function ThemeToggle() {
     setIsDarkMode(initialDarkMode)
   }, [])
 
+  const { t } = useTranslation()
+
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDarkMode)
   }, [isDarkMode])
@@ -32,7 +35,7 @@ export function ThemeToggle() {
   return (
     <Button
       onClick={toggleDarkMode}
-      aria-label={`Switch to ${isDarkMode ? "light" : "dark"} mode`}
+      aria-label={isDarkMode ? t("theme.switchLight") : t("theme.switchDark")}
       variant="ghost">
       {isDarkMode ? (
         <MoonStarIcon className="tiptap-button-icon" />

@@ -158,7 +158,29 @@ async function extractFormattingFromXml(arrayBuffer) {
     cellColors.push(fill)
   }
 
-  return { formattedRuns, cellColors }
+  // Extract table grid column widths from <w:tblGrid> → <w:gridCol w:w="...">
+  // Each table has a tblGrid that defines column widths in twips (DXA).
+  // We store as an array of arrays: one per table, each containing px widths per column.
+  const tableGrids = []
+  const tblEls = doc.getElementsByTagNameNS(ns, "tbl")
+  for (const tbl of tblEls) {
+    const grid = tbl.getElementsByTagNameNS(ns, "tblGrid")[0]
+    if (!grid) { tableGrids.push(null); continue }
+    const gridCols = grid.getElementsByTagNameNS(ns, "gridCol")
+    const colWidths = []
+    let totalTwips = 0
+    for (const col of gridCols) {
+      const w = parseInt(col.getAttributeNS(ns, "w") || col.getAttribute("w:w") || "0", 10)
+      colWidths.push(w)
+      totalTwips += w
+    }
+    // Scale to editor reference width (700px)
+    const EDITOR_WIDTH = 700
+    const scale = totalTwips > 0 ? EDITOR_WIDTH / totalTwips : 1
+    tableGrids.push(colWidths.map(w => Math.round(w * scale)))
+  }
+
+  return { formattedRuns, cellColors, tableGrids }
 }
 
 /**
@@ -311,6 +333,53 @@ function injectCellColors(html, cellColors) {
 }
 
 /**
+ * Applies table column widths from DOCX tblGrid as colwidth attributes on cells.
+ * tableGrids is an array of arrays: one per table, each containing px widths per column.
+ */
+function injectCellWidths(html, tableGrids) {
+  if (!tableGrids || tableGrids.length === 0) return html
+  const doc = new DOMParser().parseFromString(html, "text/html")
+  // Only select top-level tables (not nested) to match Word's table order
+  const tables = doc.body.querySelectorAll("table")
+  let gridIdx = 0
+  for (const table of tables) {
+    // Skip nested tables — they get their own grid entry
+    if (table.closest("td, th")) continue
+    const colWidths = tableGrids[gridIdx++]
+    if (!colWidths || colWidths.length === 0) continue
+    // Set colwidth on all cells, tracking rowspans for correct column position
+    const rows = table.querySelectorAll(":scope > thead > tr, :scope > tbody > tr, :scope > tfoot > tr, :scope > tr")
+    const activeRowSpans = []
+    for (const row of rows) {
+      const cells = row.querySelectorAll(":scope > td, :scope > th")
+      let colPos = 0
+      for (const cell of cells) {
+        while (colPos < activeRowSpans.length && activeRowSpans[colPos] > 0) {
+          activeRowSpans[colPos]--
+          colPos++
+        }
+        const colspan = parseInt(cell.getAttribute("colspan") || "1", 10)
+        const rowspan = parseInt(cell.getAttribute("rowspan") || "1", 10)
+        const widths = []
+        for (let c = 0; c < colspan && colPos + c < colWidths.length; c++) {
+          widths.push(colWidths[colPos + c])
+        }
+        if (widths.length > 0) cell.setAttribute("colwidth", widths.join(","))
+        for (let c = 0; c < colspan; c++) {
+          while (activeRowSpans.length <= colPos + c) activeRowSpans.push(0)
+          activeRowSpans[colPos + c] = rowspan - 1
+        }
+        colPos += colspan
+      }
+      for (let c = colPos; c < activeRowSpans.length; c++) {
+        if (activeRowSpans[c] > 0) activeRowSpans[c]--
+      }
+    }
+  }
+  return doc.body.innerHTML
+}
+
+/**
  * Converts tab characters to visible em-space characters.
  * Mammoth converts Word tabs to \t which HTML collapses to a single space.
  */
@@ -325,10 +394,12 @@ export async function convertDocxToHtml(file) {
 
   let formattedRuns = []
   let cellColors = []
+  let tableGrids = []
   try {
     const extracted = await extractFormattingFromXml(arrayBuffer)
     formattedRuns = extracted.formattedRuns
     cellColors = extracted.cellColors || []
+    tableGrids = extracted.tableGrids || []
   } catch (e) {
     if (import.meta.env.DEV) console.warn("[DOCX Import] XML formatting extraction failed:", e.message)
   }
@@ -360,6 +431,7 @@ export async function convertDocxToHtml(file) {
   html = convertTabs(html)
   html = injectFormatting(html, formattedRuns)
   html = injectCellColors(html, cellColors)
+  html = injectCellWidths(html, tableGrids)
 
   const warnings = result.messages
     .filter((msg) => msg.type === "warning")

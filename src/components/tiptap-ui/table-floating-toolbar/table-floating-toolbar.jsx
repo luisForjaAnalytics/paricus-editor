@@ -23,14 +23,14 @@ import {
 import "./table-floating-toolbar.scss"
 
 const CELL_COLORS = [
-  { label: "Gray", color: "#f3f4f6", border: "#d1d5db" },
-  { label: "Red", color: "#fee2e2", border: "#fca5a5" },
-  { label: "Orange", color: "#ffedd5", border: "#fdba74" },
-  { label: "Yellow", color: "#fef9c3", border: "#fde68a" },
-  { label: "Green", color: "#dcfce7", border: "#86efac" },
-  { label: "Blue", color: "#dbeafe", border: "#93c5fd" },
-  { label: "Purple", color: "#f3e8ff", border: "#d8b4fe" },
-  { label: "Pink", color: "#fce7f3", border: "#f9a8d4" },
+  { i18nKey: "cellColors.gray", color: "#f3f4f6", border: "#d1d5db" },
+  { i18nKey: "cellColors.red", color: "#fee2e2", border: "#fca5a5" },
+  { i18nKey: "cellColors.orange", color: "#ffedd5", border: "#fdba74" },
+  { i18nKey: "cellColors.yellow", color: "#fef9c3", border: "#fde68a" },
+  { i18nKey: "cellColors.green", color: "#dcfce7", border: "#86efac" },
+  { i18nKey: "cellColors.blue", color: "#dbeafe", border: "#93c5fd" },
+  { i18nKey: "cellColors.purple", color: "#f3e8ff", border: "#d8b4fe" },
+  { i18nKey: "cellColors.pink", color: "#fce7f3", border: "#f9a8d4" },
 ]
 
 const WIDTH_OPTIONS = [
@@ -67,7 +67,7 @@ function CellColorPicker({ editor, t }) {
               type="button"
               className="table-color-swatch"
               onClick={() => editor.chain().focus().setCellAttribute("backgroundColor", c.color).run()}
-              title={c.label}
+              title={t(c.i18nKey)}
               style={{
                 backgroundColor: c.color,
                 borderColor: c.border,

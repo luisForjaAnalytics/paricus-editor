@@ -6,6 +6,7 @@ import { FileUploadIcon } from "@/components/tiptap-icons/file-upload-icon"
 // Lazy-loaded to avoid bundling mammoth upfront
 const loadDocxConverter = () => import("@/lib/docx-converter")
 import { sanitizeHtml } from "@/lib/sanitize-html"
+import { normalizeImportedHtml } from "@/components/tiptap-ui/html-import-button/html-import-button"
 
 export const DocxImportButton = forwardRef(
   ({ editor: providedEditor, text, ...buttonProps }, ref) => {
@@ -29,8 +30,9 @@ export const DocxImportButton = forwardRef(
             if (import.meta.env.DEV) console.warn("Word import warnings:", warnings)
           }
 
+          const normalized = normalizeImportedHtml(html)
           editor.commands.clearContent()
-          editor.commands.setContent(sanitizeHtml(html))
+          editor.commands.setContent(sanitizeHtml(normalized))
         } catch (error) {
           if (import.meta.env.DEV) console.error(t("errors.docxImportFailed"), error)
         } finally {

@@ -73,7 +73,7 @@ function inlineStyleBlocks(doc) {
  * Removes fixed pixel widths, colgroups, and min-width styles that cause
  * narrow/broken table layouts.
  */
-function normalizeImportedHtml(html) {
+export function normalizeImportedHtml(html) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, "text/html");
 
@@ -147,8 +147,15 @@ function normalizeImportedHtml(html) {
   // Convert percentage widths on table cells to data-colwidth so TipTap preserves
   // them as colwidth attributes. This ensures table-layout: fixed works correctly
   // with the original column proportions from the imported HTML.
-  const REFERENCE_WIDTH = 718 // editor content width in px (A4 portrait minus padding)
+  const REFERENCE_WIDTH = 700 // editor content width minus borders/padding overhead
   doc.querySelectorAll("table").forEach((table) => {
+    // For nested tables, use parent cell's proportional width as reference
+    const parentCell = table.closest("td, th")
+    let refWidth = REFERENCE_WIDTH
+    if (parentCell) {
+      const parentPct = parseFloat(parentCell.style.getPropertyValue("width"))
+      if (parentPct > 0) refWidth = Math.round((parentPct / 100) * REFERENCE_WIDTH * 0.92)
+    }
     const rows = table.querySelectorAll(":scope > thead > tr, :scope > tbody > tr, :scope > tfoot > tr, :scope > tr")
     if (rows.length === 0) return
     // Find best row (most cells, fewest colspans)
@@ -170,7 +177,7 @@ function normalizeImportedHtml(html) {
       const w = cell.style.getPropertyValue("width")
       const pct = w ? parseFloat(w) : 0
       const colspan = parseInt(cell.getAttribute("colspan") || "1", 10)
-      const totalPx = pct > 0 ? Math.round((pct / 100) * REFERENCE_WIDTH) : Math.round(REFERENCE_WIDTH / bestCount)
+      const totalPx = pct > 0 ? Math.round((pct / 100) * refWidth) : Math.round(refWidth / bestCount)
       const perCol = Math.round(totalPx / colspan)
       for (let c = 0; c < colspan; c++) colWidths.push(perCol)
     }
@@ -418,28 +425,9 @@ export const HtmlImportButton = forwardRef(
       (rawHtml) => {
         if (!editor || !rawHtml.trim()) return;
         const normalized = normalizeImportedHtml(rawHtml);
-        // Debug: check if data-colwidth survived normalization
-        const tempDiv = document.createElement("div")
-        tempDiv.innerHTML = normalized
-        const cwCells = tempDiv.querySelectorAll("[data-colwidth]")
-        console.log("[IMPORT] data-colwidth after normalize:", cwCells.length, "cells",
-          Array.from(cwCells).slice(0, 5).map(c => c.getAttribute("data-colwidth")))
         const clean = sanitizeHtml(normalized);
-        const tempDiv2 = document.createElement("div")
-        tempDiv2.innerHTML = clean
-        const cwCells2 = tempDiv2.querySelectorAll("[data-colwidth]")
-        console.log("[IMPORT] data-colwidth after sanitize:", cwCells2.length, "cells",
-          Array.from(cwCells2).slice(0, 5).map(c => c.getAttribute("data-colwidth")))
         editor.commands.clearContent();
         editor.commands.setContent(clean);
-        // Debug: check if colwidth made it into ProseMirror model
-        const cells = []
-        editor.state.doc.descendants((node) => {
-          if (node.type.name === "tableCell" || node.type.name === "tableHeader") {
-            cells.push({ colwidth: node.attrs.colwidth, colspan: node.attrs.colspan })
-          }
-        })
-        console.log("[IMPORT] ProseMirror colwidths:", JSON.stringify(cells.slice(0, 10)))
         setIsOpen(false);
         // Convert external images to data URIs in background
         embedExternalImages(editor).catch(() => {

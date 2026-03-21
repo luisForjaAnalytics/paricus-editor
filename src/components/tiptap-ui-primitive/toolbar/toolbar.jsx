@@ -1,4 +1,5 @@
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Separator } from "@/components/tiptap-ui-primitive/separator"
 import "@/components/tiptap-ui-primitive/toolbar/toolbar.scss"
 import { cn } from "@/lib/tiptap-utils"
@@ -70,6 +71,7 @@ const useToolbarNavigation = (
 }
 
 export const Toolbar = forwardRef(({ children, className, variant = "fixed", ...props }, ref) => {
+  const { t } = useTranslation()
   const toolbarRef = useRef(null)
   const composedRef = useComposedRef(toolbarRef, ref)
   useToolbarNavigation(toolbarRef)
@@ -78,7 +80,7 @@ export const Toolbar = forwardRef(({ children, className, variant = "fixed", ...
     <div
       ref={composedRef}
       role="toolbar"
-      aria-label="toolbar"
+      aria-label={t("toolbar.ariaLabel")}
       data-variant={variant}
       className={cn("tiptap-toolbar", className)}
       {...props}>

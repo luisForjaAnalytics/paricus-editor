@@ -71,7 +71,10 @@ src/
 │   ├── editor-config.js               # Image proxy configuration
 │   ├── tiptap-utils.js                # Utilities: upload, shortcuts, selection
 │   ├── sanitize-html.js               # HTML sanitization (DOMPurify)
-│   └── docx-exporter.js               # HTML → DOCX conversion
+│   ├── docx-exporter.js               # HTML → DOCX conversion
+│   ├── docx-converter.js              # DOCX → HTML conversion (mammoth + XML extraction)
+│   ├── pdf-converter.js               # PDF → HTML conversion (OCR via tesseract.js)
+│   └── stamp-table-widths.js          # Table width stamping for PDF export
 │
 ├── hooks/
 │   ├── use-is-breakpoint.js           # Breakpoint detection (media query)
@@ -144,6 +147,8 @@ src/
 │   │   ├── pdf-import-button/         # Import PDF (OCR tesseract.js)
 │   │   ├── remove-formatting-button/
 │   │   ├── special-chars-button/      # Special characters
+│   │   ├── new-document-button/        # New document with confirmation modal
+│   │   ├── page-orientation-dropdown/  # Page orientation (portrait/landscape)
 │   │   ├── table-dropdown-menu/       # Insert/configure table
 │   │   ├── table-floating-toolbar/    # Contextual table toolbar
 │   │   ├── text-align-button/         # Alignment: left, center, right, justify
@@ -257,11 +262,14 @@ Same compact toolbar, with additional adaptations:
 - **Library:** `src/lib/docx-exporter.js`
 
 ### Import DOCX
-- **Method:** DOCX → HTML conversion via `mammoth`
-- **Limit:** 50MB maximum
+- **Method:** DOCX → HTML conversion via `mammoth` + XML extraction via `JSZip`
+- **XML extraction:** Cell colors (`<w:shd>`), column widths (`<w:tblGrid>`), text formatting
+- **Column widths:** Extracted from `<w:tblGrid>` and scaled proportionally to editor width
+- **Limit:** 10MB maximum
 - **Sanitization:** DOMPurify before inserting
 - **Lazy-loaded:** Loaded on demand
 - **Component:** `DocxImportButton`
+- **Library:** `src/lib/docx-converter.js`
 
 ### Import PDF
 - **Method:** OCR via `tesseract.js`
@@ -271,8 +279,10 @@ Same compact toolbar, with additional adaptations:
 
 ### Import HTML
 - **Method:** Modal with textarea to paste HTML
-- **Sanitization:** DOMPurify + table normalization + `<style>` block inlining
+- **Normalization:** `normalizeImportedHtml()` — inlines `<style>` blocks, converts legacy attrs, converts `%` widths → `colwidth`, handles rowspans
+- **Sanitization:** DOMPurify with allowed `colwidth` + `data-*` attributes
 - **External images:** Converted to data URIs in background (best-effort)
+- **Content replacement:** `clearContent()` before `setContent()` ensures clean import
 - **Component:** `HtmlImportButton`
 
 ---
@@ -282,7 +292,8 @@ Same compact toolbar, with additional adaptations:
 Implemented in `src/lib/sanitize-html.js` with DOMPurify:
 
 - **Allowed tags:** `p`, `h1`–`h6`, `table`, `img`, `a`, `ul`, `ol`, `li`, `strong`, `em`, `mark`, `span`, etc.
-- **Allowed attributes:** `class`, `style`, `href`, `src`, `colspan`, `rowspan`, `data-colwidth`, `data-bookmark-id`, etc.
+- **Allowed attributes:** `class`, `style`, `href`, `src`, `colspan`, `rowspan`, `colwidth`, `data-colwidth`, `data-bookmark-id`, etc.
+- **Data attributes:** `ALLOW_DATA_ATTR: true` — allows `data-*` attributes for TipTap compatibility
 - **Allowed CSS:** `color`, `background-color`, `font-family`, `font-size`, `border`, `padding`, `text-align`, etc.
 - **Blocked:** `javascript:`, `data:`, `vbscript:`, `url()`, `expression()`, `@import`
 - **Links:** Forces `rel="noopener noreferrer"` on `target="_blank"`
@@ -333,6 +344,38 @@ td[style*="--row-h"] > * {
 3. **Visual:** `displayRowHeight()` updates `height` and `--row-h` in DOM during drag
 4. **Persistence:** `updateRowHeight()` saves the height in ProseMirror attributes on release
 5. **Enforcement:** `enforceMinRowHeights()` runs on every render to guarantee the minimum
+
+---
+
+## Table Layout — Column Width Management
+
+Tables use `table-layout: fixed` to prevent text from pushing columns. Column widths are managed differently based on table origin:
+
+| Origin | `table-layout` | `width` | Column widths |
+|--------|---------------|---------|---------------|
+| **New (compact)** | `fixed` | `100%` | Equal colwidths from `custom-table.js` |
+| **Imported (HTML)** | `fixed` | `100%` | Converted from `%` widths → `colwidth` attr |
+| **Imported (Word)** | `fixed` | `100%` | Extracted from `<w:tblGrid>` XML → `colwidth` attr |
+| **User-resized** | `fixed` | prosemirror-tables | Updated by prosemirror-tables column resize |
+
+### Import pipeline for column widths
+
+1. **HTML import:** `normalizeImportedHtml()` reads `style="width: X%"` on cells → converts to `colwidth="Npx"` attribute → TipTap v3 parses `colwidth` into ProseMirror model → prosemirror-tables creates `<colgroup>` with those widths
+2. **Word import:** `extractFormattingFromXml()` reads `<w:tblGrid><w:gridCol w:w="...">` → scales twips proportionally to 700px → `injectCellWidths()` sets `colwidth` on HTML cells → same TipTap parsing pipeline
+
+### Rowspan-aware colwidth assignment
+
+Both import paths track active rowspans to correctly assign column widths when cells span multiple rows.
+
+---
+
+## Page Orientation & Pagination
+
+- **A4 dimensions:** 794px × 1123px (portrait), 1123px × 794px (landscape)
+- **Orientation dropdown:** Portrait (default) or Landscape
+- **Page count:** Calculated from `scrollHeight / pageHeight`, shown in status bar
+- **Canvas height:** Dynamically adjusts as content grows, resets on new import
+- **Page boundaries:** Dashed lines at page height intervals (visual-only, no content splitting)
 
 ---
 
@@ -442,8 +485,10 @@ npm run lint
 | Type | Limit |
 |---|---|
 | Image (upload) | 5 MB |
-| DOCX (import) | 50 MB |
+| DOCX (import) | 10 MB |
 | Simultaneous images | 3 |
 | Indentation levels | 10 (40px/level) |
 | Font size | 1–200px |
 | Minimum row height | 16px (1rem) |
+| Image max width (DOCX) | 600px |
+| Editor reference width | 700px (A4 portrait minus margins/borders) |

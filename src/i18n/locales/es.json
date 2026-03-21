@@ -4,7 +4,12 @@
     "mobileNotAvailable": "Este editor no está disponible en pantallas pequeñas. Por favor, utilice un dispositivo con una pantalla más grande.",
     "of": "de"
   },
+  "theme": {
+    "switchLight": "Cambiar a modo claro",
+    "switchDark": "Cambiar a modo oscuro"
+  },
   "toolbar": {
+    "ariaLabel": "Barra de herramientas",
     "undo": "Deshacer",
     "redo": "Rehacer",
     "heading": "Título",
