@@ -180,7 +180,24 @@ async function extractFormattingFromXml(arrayBuffer) {
     tableGrids.push(colWidths.map(w => Math.round(w * scale)))
   }
 
-  return { formattedRuns, cellColors, tableGrids }
+  // Extract image dimensions from <wp:inline>/<wp:anchor> → <wp:extent cx="..." cy="...">
+  // Values are in EMU (914400 EMU = 1 inch = 96px at screen DPI)
+  const EMU_PER_PX = 914400 / 96 // 9525 EMU per pixel
+  const imageSizes = []
+  const wpNs = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+  const extents = doc.getElementsByTagNameNS(wpNs, "extent")
+  for (const ext of extents) {
+    const cx = parseInt(ext.getAttribute("cx") || "0", 10)
+    const cy = parseInt(ext.getAttribute("cy") || "0", 10)
+    if (cx > 0 && cy > 0) {
+      imageSizes.push({
+        width: Math.round(cx / EMU_PER_PX),
+        height: Math.round(cy / EMU_PER_PX),
+      })
+    }
+  }
+
+  return { formattedRuns, cellColors, tableGrids, imageSizes }
 }
 
 /**
@@ -380,6 +397,23 @@ function injectCellWidths(html, tableGrids) {
 }
 
 /**
+ * Injects width/height from Word's wp:extent onto <img> elements.
+ * Images in mammoth's HTML have no dimensions — this restores them.
+ */
+function injectImageSizes(html, imageSizes) {
+  if (!imageSizes || imageSizes.length === 0) return html
+  const doc = new DOMParser().parseFromString(html, "text/html")
+  const imgs = doc.body.querySelectorAll("img")
+  for (let i = 0; i < Math.min(imgs.length, imageSizes.length); i++) {
+    const { width, height } = imageSizes[i]
+    if (width > 0) imgs[i].style.width = `${width}px`
+    if (height > 0) imgs[i].style.height = `${height}px`
+    imgs[i].style.maxWidth = "100%"
+  }
+  return doc.body.innerHTML
+}
+
+/**
  * Converts tab characters to visible em-space characters.
  * Mammoth converts Word tabs to \t which HTML collapses to a single space.
  */
@@ -395,11 +429,13 @@ export async function convertDocxToHtml(file) {
   let formattedRuns = []
   let cellColors = []
   let tableGrids = []
+  let imageSizes = []
   try {
     const extracted = await extractFormattingFromXml(arrayBuffer)
     formattedRuns = extracted.formattedRuns
     cellColors = extracted.cellColors || []
     tableGrids = extracted.tableGrids || []
+    imageSizes = extracted.imageSizes || []
   } catch (e) {
     if (import.meta.env.DEV) console.warn("[DOCX Import] XML formatting extraction failed:", e.message)
   }
@@ -432,6 +468,7 @@ export async function convertDocxToHtml(file) {
   html = injectFormatting(html, formattedRuns)
   html = injectCellColors(html, cellColors)
   html = injectCellWidths(html, tableGrids)
+  html = injectImageSizes(html, imageSizes)
 
   const warnings = result.messages
     .filter((msg) => msg.type === "warning")

@@ -49,7 +49,8 @@
       "Read(//c/desenvolupamento/FORJA/paricus-editor/src/lib/**)",
       "Bash(grep -n \"TODO\\\\|FIXME\\\\|HACK\\\\|XXX\" c:/desarrollo/FORJA/paricus-editor/src/SimpleEditor.jsx c:/desarrollo/FORJA/paricus-editor/src/lib/docx-exporter.js c:/desarrollo/FORJA/paricus-editor/src/extensions/*.js)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(npm run:*)"
     ],
     "additionalDirectories": [
       "C:\\desarrollo\\FORJA\\paricus-editor\\src\\extensions",
